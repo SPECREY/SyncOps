@@ -12,8 +12,7 @@ your music playing in the built-in Walkman — all inside a retro "operations te
 - **Recall check** — write what you learned after each task; get a warm-up quiz on it next time
 - **Points + rewards** — earn points for steps and finished tasks, spend them on rewards you choose
 - **Record** — 14-day history, focus time, streak, how your time estimates compare to reality
-- **Walkman** — plays music from a local folder (MP3, FLAC, OGG, WAV, M4A) or YouTube playlists; its buttons control YouTube too, and videos/playlists loop
-- **Background HUD** — flashing warning boxes, hexagons and data readouts (OFF/LOW/HIGH, about 2 flashes per second at most)
+- **Walkman** — plays music from a local folder (MP3, FLAC, OGG, WAV, M4A) or YouTube playlists
 - **Calm mode**, text size setting, and full-screen scaling
 
 The SYSTEM screen inside the app lists the research behind each ADHD feature. SyncOps is a study tool, not a treatment.
