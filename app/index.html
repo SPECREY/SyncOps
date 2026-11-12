@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; media-src 'self' data: blob: syncmusic:; frame-src https://www.youtube-nocookie.com https://www.youtube.com">
+<title>SYNC OPS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="bgfx" aria-hidden="true"></canvas>
+
+<div id="boot" class="boot">
+  <div class="boot-hex" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="boot-inner">
+    <div class="boot-lines" id="bootLines"></div>
+    <div class="boot-title" id="bootTitle">SYNC OPS</div>
+    <div class="boot-bar"><div id="bootFill"></div></div>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="hazard hazard-left"></div>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div>
+      <div class="micro"><span class="live-dot"></span> SYSTEM ACTIVE // GAME DEV TRAINING</div>
+      <div class="brand-name">SYNC&nbsp;OPS</div>
+    </div>
+  </div>
+  <div class="top-date">
+    <div class="micro">CALENDAR</div>
+    <div id="dateText" class="mono big-ish">----</div>
+  </div>
+  <div class="top-sync">
+    <div class="micro">SYNC RATE · TODAY <span id="ptsTop" class="pts-top"></span></div>
+    <div class="sync-row"><div class="sync-bar"><div id="syncFill"></div></div><span id="syncPct" class="mono">0.0%</span></div>
+  </div>
+  <div class="top-clock">
+    <div class="micro">LOCAL TIME</div>
+    <div id="clock" class="mono clock">00:00:00</div>
+  </div>
+  <button id="calmBtn" class="chip-btn" title="Reduce motion, flashing and sound">CALM MODE: OFF</button>
+</header>
+
+<div class="shell">
+  <nav class="side">
+    <button class="nav-btn active" data-view="hub"><span class="n">01</span>HUB</button>
+    <button class="nav-btn" data-view="today"><span class="n">02</span>TODAY</button>
+    <button class="nav-btn" data-view="ops"><span class="n">03</span>ALL OPERATIONS</button>
+    <button class="nav-btn" data-view="parked"><span class="n">04</span>PARKED THOUGHTS <span id="parkedCount" class="badge"></span></button>
+    <button class="nav-btn" data-view="walkman"><span class="n">05</span>WALKMAN</button>
+    <button class="nav-btn" data-view="rewards"><span class="n">06</span>REWARDS</button>
+    <button class="nav-btn" data-view="record"><span class="n">07</span>RECORD</button>
+    <button class="nav-btn" data-view="system"><span class="n">08</span>SYSTEM</button>
+
+    <div class="hex-cluster" aria-label="Today summary">
+      <div class="hex h1"><div><b id="hexDone">0</b><small>DONE</small></div></div>
+      <div class="hex h2"><div><b id="hexLeft">0</b><small>LEFT</small></div></div>
+      <div class="hex h3"><div><b id="hexMin">0</b><small>FOCUS MIN</small></div></div>
+    </div>
+    <div id="mini" class="mini hidden">
+      <div class="remote">
+        <div class="rm-lcd"><div class="rm-name"><span id="miniName">—</span></div><div class="rm-time seg" id="miniTime">00:00</div></div>
+        <div class="mini-bar"><i id="miniProg"></i></div>
+        <div class="mini-btns"><button class="mbtn" data-w="prev" title="Previous">⏮</button><button class="mbtn" data-w="toggle" id="miniPlay" title="Play/Pause">▶</button><button class="mbtn" data-w="next" title="Next">⏭</button><button class="mbtn" data-w="open" title="Open Walkman">♪</button></div>
+      </div>
+    </div>
+    <div class="side-code mono" aria-hidden="true"><div id="sideCode"></div></div>
+  </nav>
+
+  <main id="view" class="view"></main>
+</div>
+<div class="ticker mono" aria-hidden="true"><div id="tickerText"></div></div>
+<div id="wipe" class="wipe" aria-hidden="true"></div>
+
+<!-- Focus mode -->
+<section id="focus" class="focus hidden" aria-live="polite">
+  <div class="hazard hazard-strip"></div>
+  <div class="focus-head">
+    <div>
+      <div class="micro orange"><span class="live-dot"></span> OPERATION IN PROGRESS · <span id="fChunkLabel">CHUNK 1</span></div>
+      <div id="fTitle" class="title-card">TASK</div>
+      <div id="fIfThen" class="ifthen"></div>
+    </div>
+    <div class="focus-head-btns">
+      <button class="btn ghost" id="fReopen">REOPEN LINKS + APPS</button>
+      <button class="btn ghost" id="fMin">MINIMIZE</button>
+    </div>
+  </div>
+  <div class="focus-grid">
+    <div class="panel timer-panel">
+      <div class="panel-label">TIME REMAINING IN THIS CHUNK</div>
+      <div id="fTime" class="mono timer">25:00</div>
+      <div id="fSegs" class="segs"></div>
+      <div class="timer-sub mono"><span id="fElapsed">ELAPSED 00:00</span><span id="fEst">EST --</span></div>
+      <div class="row gap wrap">
+        <button class="btn" id="fPause">PAUSE</button>
+        <button class="btn" id="fPlus">+5 MIN</button>
+        <button class="btn danger" id="fEnd">END OPERATION</button>
+      </div>
+      <div class="noise-box">
+        <div class="panel-label">BACKGROUND NOISE <span class="micro">— SMALL BENEFIT IN STUDIES, TEST IF IT HELPS YOU</span></div>
+        <div class="row gap wrap">
+          <button class="btn small noise-btn" data-noise="off">OFF</button>
+          <button class="btn small noise-btn" data-noise="white">WHITE</button>
+          <button class="btn small noise-btn" data-noise="pink">PINK</button>
+          <button class="btn small noise-btn" data-noise="brown">BROWN</button>
+          <input type="range" id="noiseVol" min="0" max="0.5" step="0.01" aria-label="Noise volume">
+        </div>
+      </div>
+      <div class="focus-walk">
+        <div class="panel-label">WALKMAN</div>
+        <div class="row gap"><span class="mini-tape" aria-hidden="true"><i></i><i></i></span><span id="fwName" class="mono fw-name">NO TAPE LOADED</span>
+          <button class="mbtn" data-w="prev">⏮</button><button class="mbtn" data-w="toggle" id="fwPlay">▶</button><button class="mbtn" data-w="next">⏭</button></div>
+      </div>
+    </div>
+    <div class="panel steps-panel">
+      <div class="panel-label">STEPS <span id="fStepCount"></span></div>
+      <div id="fCurrent" class="current-step"></div>
+      <button class="btn big go" id="fStepDone">STEP COMPLETE <kbd>SPACE</kbd></button>
+      <ol id="fSteps" class="step-list"></ol>
+    </div>
+  </div>
+  <div class="park-bar">
+    <label for="fPark" class="micro orange">THOUGHT INTERRUPT — WRITE IT DOWN, DEAL WITH IT AFTER THE TIMER</label>
+    <div class="row gap">
+      <input id="fPark" type="text" placeholder="e.g. check that new Unity asset, reply to Sam, look up shaders…" autocomplete="off">
+      <button class="btn" id="fParkBtn">PARK</button>
+    </div>
+    <div id="fParkMsg" class="mono park-msg"></div>
+  </div>
+  <div id="cueBanner" class="cue hidden">
+    <span>ATTENTION CHECK — WERE YOU ON TARGET?</span>
+    <button class="btn small" id="cueYes">YES, ON IT</button>
+    <button class="btn small ghost" id="cueBack">I DRIFTED — BACK NOW</button>
+  </div>
+</section>
+
+<div id="ytDock" class="yt-dock hidden">
+  <div class="yt-head mono"><span class="live-dot"></span> YOUTUBE <span class="spacer"></span><button class="mbtn" data-y="hide" title="Hide video, keep playing">▁</button><button class="mbtn" data-y="close" title="Stop">✕</button></div>
+  <div id="ytFrameBox" class="yt-frame"></div>
+</div>
+<div id="modalWrap" class="modal-wrap hidden"><div id="modal" class="modal"></div></div>
+<div id="alertWrap" class="alert-wrap hidden"><div id="alert" class="alert"></div></div>
+<div id="toast" class="toast hidden"></div>
+<div class="scanlines" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

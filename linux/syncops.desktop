@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SyncOps
+Comment=Daily game-dev learning tasks, designed for ADHD
+Exec=bash /home/specrey/Projects/SyncOps/launch.sh
+Icon=/home/specrey/Projects/SyncOps/icon.png
+Categories=Education;Development;
+Terminal=false
+StartupWMClass=SyncOps
