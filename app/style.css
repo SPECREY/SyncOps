@@ -686,3 +686,84 @@ body.walk-playing .rm-name span { display: inline-block; padding-left: 100%; ani
 .yt-dock { border-color: #4c5058; border-radius: 10px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.6), 0 0 0 2px var(--violet1); }
 .yt-head { background: linear-gradient(90deg, var(--violet2), var(--violet1)); color: #e8e4ff; }
 body.has-mini .hex-cluster { margin-bottom: 26px; }
+
+/* =====================================================================
+   BACKGROUND HUD LAYER (flash rate <= ~2 Hz)
+   ===================================================================== */
+#hudfx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; opacity: .55; }
+#hudfx.low { opacity: .3; }
+.hud-item { position: absolute; font-family: var(--mono); color: var(--orange); animation: hudIn .22s steps(3) both; }
+.hud-item.out { animation: hudOut .25s steps(2) forwards; }
+@keyframes hudIn { 0% { opacity: 0; transform: scaleY(.1); } 60% { opacity: 1; transform: scaleY(1.1); } 100% { opacity: 1; transform: none; } }
+@keyframes hudOut { to { opacity: 0; transform: scaleX(1.3) scaleY(.05); } }
+@keyframes hudBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .15; } }  /* used at 0.5s+ periods only */
+
+.hud-warn { border: 2px solid var(--red); background: rgba(40,0,4,.85); min-width: 180px; text-align: center; animation: hudIn .22s steps(3) both, hudBlink .55s steps(1) .25s 3; }
+.hud-warn .hz { height: 10px; background: repeating-linear-gradient(-45deg, var(--red) 0 8px, #000 8px 16px); }
+.hud-warn .hw { font-family: var(--serif); font-size: 34px; color: var(--red); padding: 4px 12px 0; transform: scaleX(.85); letter-spacing: .04em; text-shadow: 0 0 14px rgba(255,26,42,.7); }
+.hud-warn .hs { font-size: 11px; color: #ffb0a0; padding: 0 0 6px; letter-spacing: .14em; }
+.hud-data { border: 1px solid var(--orange); background: rgba(20,10,2,.85); padding: 0 0 6px; font-size: 12px; line-height: 1.5; letter-spacing: .1em; }
+.hud-data div { padding: 0 10px; }
+.hud-data .hd-head { background: var(--orange); color: #000; margin-bottom: 4px; font-size: 13px; }
+.hud-data.red { border-color: var(--red); color: #ffb0a0; } .hud-data.red .hd-head { background: var(--red); color: #fff; }
+.hud-hex { width: 200px; height: 110px; }
+.hud-hex i { position: absolute; left: var(--x); top: var(--y); width: 56px; height: 50px; background: var(--orange); clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); animation: hudBlink .6s steps(1) var(--d) 3; }
+.hud-hex i b { position: absolute; inset: 2px; clip-path: inherit; background: #7a0610; display: grid; place-items: center; font-weight: 400; color: #fff; font-size: 18px; }
+.hud-target { width: var(--s, 150px); aspect-ratio: 1; }
+.hud-target { width: 150px; height: 150px; animation: hudIn .22s steps(3) both, tgtZoom 1.2s ease-out both; }
+@keyframes tgtZoom { from { transform: scale(1.8); } to { transform: none; } }
+.hud-target .tc { position: absolute; width: 22px; height: 22px; border-color: var(--green); border-style: solid; }
+.hud-target .tl { left: 0; top: 0; border-width: 2px 0 0 2px; } .hud-target .tr { right: 0; top: 0; border-width: 2px 2px 0 0; }
+.hud-target .bl { left: 0; bottom: 0; border-width: 0 0 2px 2px; } .hud-target .br { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
+.hud-target .tx { position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed rgba(76,255,138,.6); }
+.hud-target .ty { position: absolute; top: 0; bottom: 0; left: 50%; border-left: 1px dashed rgba(76,255,138,.6); }
+.hud-target .tlbl { position: absolute; left: 0; bottom: -18px; font-size: 11px; color: var(--green); white-space: nowrap; border: 1px solid var(--green); padding: 0 5px; background: rgba(0,20,8,.85); }
+.hud-target.red .tc, .hud-target.red .tlbl { border-color: var(--red); color: var(--red); }
+.hud-cols { display: flex; gap: 14px; font-size: 11px; line-height: 1.35; letter-spacing: .08em; }
+.hud-cols div { animation: colType 1s steps(8) both; overflow: hidden; }
+@keyframes colType { from { max-height: 0; } to { max-height: 300px; } }
+.hud-wave { border: 1px solid rgba(76,255,138,.5); background: rgba(0,15,6,.8); padding: 6px; }
+.hud-wave polyline { animation: waveShift .5s linear infinite; }
+@keyframes waveShift { to { transform: translateX(-10px); } }
+.wl { font-size: 10px; color: var(--green); letter-spacing: .16em; margin-top: 2px; }
+.hud-radar .rd { width: 110px; height: 110px; border-radius: 50%; border: 1px solid var(--green); position: relative; overflow: hidden;
+  background: repeating-radial-gradient(circle, transparent 0 17px, rgba(76,255,138,.35) 17px 18px), rgba(0,15,6,.8); }
+.hud-radar .rd i { position: absolute; inset: 0; background: conic-gradient(rgba(76,255,138,.55), transparent 25%); animation: spin 1.2s linear infinite; }
+.hud-bars { display: flex; align-items: flex-end; gap: 3px; width: 160px; height: 70px; border-bottom: 1px solid var(--orange); }
+.hud-bars i { flex: 1; background: var(--orange); animation: barJump .5s steps(3) infinite alternate; }
+.hud-bars i:nth-child(odd) { animation-delay: .25s; }
+.hud-bars.red i { background: var(--red); }
+@keyframes barJump { to { transform: scaleY(.4); transform-origin: bottom; } }
+.hud-code { border: 2px solid var(--orange); padding: 4px 10px; background: rgba(20,10,2,.85); text-align: center; }
+.hud-code .big { font-size: 46px; color: var(--orange); line-height: 1; text-shadow: 0 0 12px rgba(255,138,28,.6); }
+.hud-code.red { border-color: var(--red); } .hud-code.red .big { color: var(--red); }
+.hud-sweep { position: absolute; left: 0; right: 0; top: 46%; height: 46px; background: repeating-linear-gradient(-45deg, rgba(255,26,42,.85) 0 18px, rgba(0,0,0,.85) 18px 36px);
+  display: flex; align-items: center; justify-content: space-around; white-space: nowrap; overflow: hidden; animation: sweepIn 1.6s ease-in-out both; }
+.hud-sweep span { font-family: var(--serif); font-size: 30px; color: #fff; background: #000; padding: 0 14px; text-shadow: 0 0 10px var(--red); }
+@keyframes sweepIn { 0% { transform: scaleY(0); } 12% { transform: scaleY(1); } 85% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(0); opacity: 0; } }
+body.calm #hudfx { display: none; }
+
+/* =====================================================================
+   WALKMAN — more purple
+   ===================================================================== */
+:root { --wm-body1: #5a4c9c; --wm-body2: #3a3070; --wm-body3: #211a45; --wm-edge: #7a6cc8; }
+.wm { border-color: #120e2a; box-shadow: inset 0 2px 0 rgba(220,210,255,.22), inset 0 -3px 0 rgba(0,0,0,.55), 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px var(--wm-edge); }
+.wm-tiny { color: #c8c0f0; }
+.wm-grille { background: repeating-linear-gradient(90deg, #15112e 0 3px, #6a5fb0 3px 5px); }
+.wm-side { background: linear-gradient(90deg, #1c1640, #3c3278); border-color: #120e2a; }
+.wkey { background: linear-gradient(#6c5fb8, #3b3176); border-color: #120e2a; color: #ece8ff; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 2px 0 #0c0920; }
+.wkey.sm { color: #b8b0e8; }
+.wm-bottom { background: linear-gradient(#2a2256, #1a1540); border-top-color: #6a5fb0; }
+.wm-badge { border-color: #b8b0e8; color: #ece8ff; }
+.wm-model b { color: #ddd6ff; } .wm-model span { color: #9a90d0; }
+.wm-vol { color: #c8c0f0; }
+.wm-times { color: #c8c0f0; }
+.cassette { background: linear-gradient(#2a2450, #1a1638); border-color: #0c0920; }
+.cas-mid { background: #0e0b22; }
+.cas-foot { background: #0e0b22; }
+.wm-window { border-color: #120e2a; box-shadow: inset 0 0 24px rgba(0,0,0,.6), 0 0 0 1px #7a6cc8; }
+.wm-lcd { border-color: #120e2a; box-shadow: inset 0 0 18px rgba(0,0,0,.7), 0 0 0 1px #7a6cc8; }
+.lcd-sub { font-size: 10px; color: var(--lcd-on); opacity: .6; letter-spacing: .14em; margin-top: 3px; }
+.wm-src { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--lcd-on); border: 1px solid rgba(125,255,182,.4); padding: 1px 6px; border-radius: 3px; }
+.wm-src.yt { color: #ff6a6a; border-color: rgba(255,90,90,.6); }
+.yt-panel .yt-slot { margin-bottom: 2px; }

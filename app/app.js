@@ -50,7 +50,7 @@ function defaults() {
     version: 2,
     settings: {
       calm: false, sound: true, volume: 0.7, attentionSpan: 25, cueEvery: 10, breakMin: 5, briefingSeen: '',
-      noise: 'off', noiseVol: 0.12, zoom: 1, custom: { click: '', alarm: '', complete: '' }, reminders: true,
+      noise: 'off', noiseVol: 0.12, zoom: 1, hud: 'high', custom: { click: '', alarm: '', complete: '' }, reminders: true,
     },
     tasks: [], log: {}, parked: [], autoOpened: '',
     hub: { apps: [], links: [] },               // pinned apps/links for the hub
@@ -691,6 +691,9 @@ function viewSystem() {
       <div class="field" style="margin-top:18px"><span class="lbl">TEXT SIZE</span>
         <div class="row gap wrap">${[[1, 'NORMAL'], [1.1, 'LARGE'], [1.2, 'X-LARGE'], [1.35, 'HUGE']].map(([z, n]) => `<button class="btn small ${Math.abs(s.zoom - z) < .01 ? 'go' : 'ghost'}" data-act="zoom" data-z="${z}">${n}</button>`).join('')}</div>
         <span class="hint">Makes everything in the app bigger. Ctrl + / Ctrl − also work.</span></div>
+      <div class="field"><span class="lbl">BACKGROUND HUD EFFECTS</span>
+        <div class="row gap wrap">${['off', 'low', 'high'].map(l => `<button class="btn small ${s.hud === l ? 'go' : 'ghost'}" data-act="hud" data-l="${l}">${l.toUpperCase()}</button>`).join('')}</div>
+        <span class="hint">Flashing warning boxes, hexagons and data readouts behind the screens. Flashes stay at about 2 per second or slower.</span></div>
     </div>
     <div class="panel">
       <div class="panel-label">FOCUS TIMING</div>
@@ -769,6 +772,7 @@ function bindView(el) {
       case 'park-clear': S.parked = S.parked.filter(x => !x.done); save(); render(); break;
       case 'measure': measureSpan(); break;
       case 'zoom': setZoom(+a.dataset.z); render(); break;
+      case 'hud': S.settings.hud = a.dataset.l; save(); setHud(); render(); break;
       // hub
       case 'next-quote': quoteOffset++; render(); break;
       case 'hub-launch': { const app = hubAppList()[i]; sfx.engage(); flashTile(a); const r = await window.ops.launchApp(app); toast(r.ok ? `LAUNCHING ${app.name.toUpperCase()}` : `COULD NOT OPEN ${app.name}: ${r.error}`, !r.ok); break; }
@@ -817,7 +821,7 @@ function bindView(el) {
       const r = await window.ops.setAutostart(e.target.checked);
       toast(r.ok ? (r.enabled ? 'SYNC OPS WILL START WHEN YOU LOG IN' : 'AUTOSTART OFF') : 'COULD NOT CHANGE AUTOSTART: ' + r.error, !r.ok);
     };
-    $('#setCalm').onchange = (e) => { S.settings.calm = e.target.checked; save(); refreshChrome(); setBg(); };
+    $('#setCalm').onchange = (e) => { S.settings.calm = e.target.checked; save(); refreshChrome(); setBg(); setHud(); };
     $('#setSound').onchange = (e) => { S.settings.sound = e.target.checked; save(); };
     $('#setRem').onchange = (e) => { S.settings.reminders = e.target.checked; save(); };
     $('#setVol').oninput = (e) => { S.settings.volume = +e.target.value; if (SND.master) SND.master.gain.value = S.settings.volume; save(); };
@@ -1338,12 +1342,11 @@ function bindGlobalSounds() {
 }
 
 // =====================================================================
-// WALKMAN — local music folder + YouTube playlists
+// WALKMAN — local music folder + YouTube playlists (one deck controls both)
 // =====================================================================
 const AUD = new Audio(); AUD.crossOrigin = 'anonymous'; AUD.preload = 'metadata';
-const W = { tracks: [], idx: -1, tab: 'local', filter: '', yt: null, ytHidden: false, an: null, scanned: false, scanErr: '' };
+const W = { tracks: [], idx: -1, tab: 'local', filter: '', yt: null, yi: {}, ytHidden: false, an: null, scanned: false, scanErr: '' };
 const trackUrl = (p) => 'syncmusic://track/' + encodeURIComponent(p);
-
 function wk() { return (S.walkman ||= { dir: '', vol: 0.7, shuffle: false, repeat: 'all', lastPath: '', playlists: [] }); }
 
 async function scanMusic() {
@@ -1378,81 +1381,123 @@ function playIndex(i) {
   tone({ f: 90, f2: 160, d: 0.18, type: 'sawtooth', v: 0.05, lp: 600 });
   if (view === 'walkman') render(); else updateMini();
 }
+
+// ---- transport (routes to YouTube when a YouTube tape is loaded) ----
 function wToggle() {
-  if (W.yt) { toast('USE THE YOUTUBE PLAYER BUTTONS'); return; }
+  if (W.yt) { ytCmd(W.yi.playerState === 1 ? 'pauseVideo' : 'playVideo'); return; }
   if (!AUD.src || W.idx < 0) { playIndex(W.idx >= 0 ? W.idx : 0); return; }
   ensureAnalyser();
   if (AUD.paused) AUD.play().catch(() => { }); else AUD.pause();
 }
 function wNext(auto) {
+  if (W.yt) { if (W.yt.list) ytCmd('nextVideo'); else ytSeek(0); return; }
   if (!W.tracks.length) return;
   if (auto && wk().repeat === 'one') { AUD.currentTime = 0; AUD.play(); return; }
   if (wk().shuffle && W.tracks.length > 1) { let j; do { j = Math.random() * W.tracks.length | 0; } while (j === W.idx); playIndex(j); return; }
   if (auto && wk().repeat === 'off' && W.idx === W.tracks.length - 1) { AUD.pause(); return; }
   playIndex(W.idx + 1);
 }
-function wPrev() { if (AUD.currentTime > 4) { AUD.currentTime = 0; return; } playIndex(W.idx - 1); }
+function wPrev() {
+  if (W.yt) { if ((W.yi.currentTime || 0) > 4 || !W.yt.list) ytSeek(0); else ytCmd('previousVideo'); return; }
+  if (AUD.currentTime > 4) { AUD.currentTime = 0; return; } playIndex(W.idx - 1);
+}
+function wStop() {
+  if (W.yt) { ytCmd('pauseVideo'); ytSeek(0); return; }
+  AUD.pause(); AUD.currentTime = 0; updateMini();
+}
+function wSetVol(v) {
+  wk().vol = v; AUD.volume = v; save();
+  if (W.yt) ytCmd('setVolume', [Math.round(v * 100)]);
+}
+function wSeekFrac(f) {
+  if (W.yt) { if (W.yi.duration) ytSeek(f * W.yi.duration); return; }
+  if (AUD.duration) AUD.currentTime = f * AUD.duration;
+}
 
 AUD.addEventListener('ended', () => wNext(true));
 AUD.addEventListener('play', () => { document.body.classList.add('walk-playing'); updateMini(); vuLoop(); });
-AUD.addEventListener('pause', () => { document.body.classList.remove('walk-playing'); updateMini(); });
-AUD.addEventListener('error', () => { if (AUD.dataset.path) toast('COULD NOT PLAY: ' + AUD.dataset.path.split(/[\\/]/).pop(), true); });
-AUD.addEventListener('timeupdate', () => {
-  const d = AUD.duration || 0, c = AUD.currentTime || 0;
-  const p = d ? c / d * 100 : 0;
-  const mp = $('#miniProg'); if (mp) mp.style.width = p + '%';
-  const mt = $('#miniTime'); if (mt && !W.yt) mt.textContent = lcdTime().slice(0, 5);
-  const s = $('#wSeek'); if (s && !s.matches(':active')) s.value = d ? c / d * 1000 : 0;
-  const a = $('#wCur'); if (a) a.textContent = fmt(c);
-  const b = $('#wDur'); if (b) b.textContent = fmt(d);
-});
+AUD.addEventListener('pause', () => { if (!W.yt) document.body.classList.remove('walk-playing'); updateMini(); });
+AUD.addEventListener('error', () => { if (AUD.dataset.path && !W.yt) toast('COULD NOT PLAY: ' + AUD.dataset.path.split(/[\\/]/).pop(), true); });
+AUD.addEventListener('timeupdate', () => { if (!W.yt) updateTimes(); });
 
-function lcdTime() {
-  const c = AUD.currentTime || 0;
+// ---- what the deck shows ----
+function deckInfo() {
+  if (W.yt) {
+    const i = W.yi, pl = Array.isArray(i.playlist) ? i.playlist : null;
+    return {
+      yt: true, name: (i.videoData && i.videoData.title) || W.yt.name || 'YOUTUBE',
+      sub: 'YOUTUBE' + (pl ? ` · ${(i.playlistIndex || 0) + 1}/${pl.length}` : ' · LOOP'),
+      track: pl ? pad((i.playlistIndex || 0) + 1) : 'YT', cur: i.currentTime || 0, dur: i.duration || 0, playing: i.playerState === 1,
+    };
+  }
+  const t = W.tracks[W.idx];
+  return { yt: false, name: t ? t.name : '', sub: t ? (t.folder || 'ROOT') : 'PRESS PLAY', track: W.idx >= 0 ? pad(W.idx + 1) : '--',
+    cur: AUD.currentTime || 0, dur: AUD.duration || 0, playing: !AUD.paused };
+}
+function lcdTime(c) {
+  c = c ?? deckInfo().cur;
   return `${pad(Math.floor(c / 60))}:${pad(Math.floor(c % 60))}.${Math.floor((c * 10) % 10)}`;
 }
-function curName() {
-  if (W.yt) return 'YOUTUBE · ' + (W.yt.name || 'PLAYLIST');
-  const t = W.tracks[W.idx]; return t ? t.name : '';
+function curName() { const d = deckInfo(); return d.yt ? 'YT · ' + d.name : d.name; }
+function updateTimes() {
+  const d = deckInfo(), p = d.dur ? d.cur / d.dur : 0;
+  const mp = $('#miniProg'); if (mp) mp.style.width = (p * 100) + '%';
+  const s = $('#wSeek'); if (s && !s.matches(':active')) s.value = p * 1000;
+  const a = $('#wCur'); if (a) a.textContent = fmt(d.cur);
+  const b = $('#wDur'); if (b) b.textContent = fmt(d.dur);
+  const lt = $('#lcdTime'); if (lt) lt.textContent = lcdTime(d.cur);
+  const mt = $('#miniTime'); if (mt) mt.textContent = lcdTime(d.cur).slice(0, 5);
 }
 function updateMini() {
-  const name = curName();
-  const has = !!name;
+  const d = deckInfo(), name = curName(), has = !!d.name;
   $('#mini').classList.toggle('hidden', !has);
   document.body.classList.toggle('has-mini', has);
+  document.body.classList.toggle('walk-playing', d.playing);
   $('#miniName').textContent = name || '—';
-  const playing = W.yt ? true : !AUD.paused;
-  $('#miniPlay').textContent = playing ? '❚❚' : '▶';
+  $('#miniPlay').textContent = d.playing ? '❚❚' : '▶';
   $('#fwName').textContent = name || 'NO TAPE LOADED — OPEN WALKMAN';
-  $('#fwPlay').textContent = playing ? '❚❚' : '▶';
-  const big = $('#wPlay'); if (big) big.textContent = playing ? '❚❚' : '▶';
-  const mt = $('#miniTime'); if (mt) mt.textContent = W.yt ? 'YT' : lcdTime().slice(0, 5);
-  $$('.deck-led').forEach(l => l.classList.toggle('on', playing));
+  $('#fwPlay').textContent = d.playing ? '❚❚' : '▶';
+  const big = $('#wPlay'); if (big) big.textContent = d.playing ? '❚❚' : '▶';
+  $$('.deck-led').forEach(l => l.classList.toggle('on', d.playing));
+  const n = $('#lcdName'); if (n && n.textContent !== (d.name || 'NO TAPE')) n.textContent = d.name || 'NO TAPE';
+  const cl = $('#casName'); if (cl) cl.textContent = d.name || 'SIDE A';
+  const tr = $('#lcdTrack'); if (tr) tr.textContent = d.track;
+  const sb = $('#lcdSub'); if (sb) sb.textContent = d.sub;
+  updateTimes();
+  if (d.playing) vuLoop();
 }
 
-// VU meter: real spectrum from the playing track
+// VU meter: real spectrum for local files; animated levels for YouTube (its audio can't be read)
+let vuRunning = false;
 function vuLoop() {
-  const cv = $('#vu');
-  if (AUD.paused) return;
-  requestAnimationFrame(vuLoop);
-  if (!cv || !W.an) return;
-  const g = cv.getContext('2d');
-  if (cv.width !== cv.clientWidth) { cv.width = cv.clientWidth; cv.height = cv.clientHeight; }
-  const data = new Uint8Array(W.an.frequencyBinCount); W.an.getByteFrequencyData(data);
-  const n = 28, bw = cv.width / n, H = cv.height, rows = 8;
-  g.clearRect(0, 0, cv.width, H);
-  for (let i = 0; i < n; i++) {
-    const v = data[Math.floor(i * data.length / n * 0.85)] / 255;
-    const segs = Math.round(v * rows);
-    for (let s = 0; s < rows; s++) {
-      g.fillStyle = s < segs ? (s >= rows - 2 ? '#ff6a3a' : '#7dffb6') : 'rgba(125,255,182,0.07)';
-      g.fillRect(i * bw + 1.5, H - (s + 1) * (H / rows) + 1, bw - 3, H / rows - 2);
+  if (vuRunning) return; vuRunning = true;
+  const frame = () => {
+    const d = deckInfo();
+    if (!d.playing) { vuRunning = false; return; }
+    requestAnimationFrame(frame);
+    const cv = $('#vu'); if (!cv) return;
+    const g = cv.getContext('2d');
+    if (cv.width !== cv.clientWidth) { cv.width = cv.clientWidth; cv.height = cv.clientHeight; }
+    const n = 28, bw = cv.width / n, H = cv.height, rows = 8;
+    let data = null;
+    if (!d.yt && W.an) { data = new Uint8Array(W.an.frequencyBinCount); W.an.getByteFrequencyData(data); }
+    const t = performance.now() / 1000;
+    g.clearRect(0, 0, cv.width, H);
+    for (let i = 0; i < n; i++) {
+      const v = data ? data[Math.floor(i * data.length / n * 0.85)] / 255
+        : Math.max(0, 0.55 + 0.35 * Math.sin(t * 6 + i * 0.7) * Math.sin(t * 2.3 + i * 0.31) - i * 0.012 + (Math.random() - 0.5) * 0.15);
+      const segs = Math.round(v * rows);
+      for (let s = 0; s < rows; s++) {
+        g.fillStyle = s < segs ? (s >= rows - 2 ? '#ff6a3a' : '#7dffb6') : 'rgba(125,255,182,0.07)';
+        g.fillRect(i * bw + 1.5, H - (s + 1) * (H / rows) + 1, bw - 3, H / rows - 2);
+      }
     }
-  }
-  const lt = $('#lcdTime'); if (lt) lt.textContent = lcdTime();
+    if (!d.yt) { const lt = $('#lcdTime'); if (lt) lt.textContent = lcdTime(d.cur); }
+  };
+  requestAnimationFrame(frame);
 }
 
-// ---------- YouTube ----------
+// ---------- YouTube (official embedded player, controlled with its postMessage API) ----------
 function parseYT(input) {
   input = (input || '').trim(); if (!input) return null;
   if (/^(PL|OL|RD|UU|FL|LL)[\w-]{10,}$/.test(input)) input = 'https://www.youtube.com/playlist?list=' + input;
@@ -1462,22 +1507,57 @@ function parseYT(input) {
   if (u.hostname === 'youtu.be') v = u.pathname.slice(1);
   const m = u.pathname.match(/^\/(embed|shorts|live)\/([\w-]{6,})/); if (m && m[2] !== 'videoseries') v = m[2];
   if (!v && !list) return null;
-  const q = 'autoplay=1&rel=0&modestbranding=1&playsinline=1';
-  const embed = v ? `https://www.youtube-nocookie.com/embed/${v}?${list ? 'list=' + list + '&' : ''}${q}` : `https://www.youtube-nocookie.com/embed/videoseries?list=${list}&${q}`;
+  // loop=1: playlists start again from the first song; single videos repeat (needs playlist=<same id>)
+  const q = 'autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&loop=1';
+  const embed = v
+    ? `https://www.youtube-nocookie.com/embed/${v}?${list ? 'list=' + list : 'playlist=' + v}&${q}`
+    : `https://www.youtube-nocookie.com/embed/videoseries?list=${list}&${q}`;
   const watch = v ? `https://www.youtube.com/watch?v=${v}${list ? '&list=' + list : ''}` : `https://www.youtube.com/playlist?list=${list}`;
   return { v, list, embed, watch };
 }
+function ytFrame() { return $('#ytFrameBox iframe'); }
+function ytPost(obj) { const f = ytFrame(); if (f && f.contentWindow) f.contentWindow.postMessage(JSON.stringify(obj), '*'); }
+function ytCmd(func, args = []) { ytPost({ event: 'command', func, args, id: 'syncops', channel: 'widget' }); }
+function ytSeek(sec) { ytCmd('seekTo', [sec, true]); W.yi.currentTime = sec; updateTimes(); }
+let ytHandshake = null;
 function playYT(item) {
   const p = parseYT(item.url); if (!p) { toast('THAT DOES NOT LOOK LIKE A YOUTUBE LINK', true); return; }
   AUD.pause();
-  W.yt = { ...p, name: item.name || (p.list ? 'PLAYLIST' : 'VIDEO') }; W.ytHidden = false;
-  $('#ytFrameBox').innerHTML = `<iframe src="${esc(p.embed)}" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  W.yt = { ...p, name: item.name || (p.list ? 'PLAYLIST' : 'VIDEO') }; W.yi = {}; W.ytHidden = false;
+  const box = $('#ytFrameBox');
+  box.innerHTML = `<iframe src="${esc(p.embed)}" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  const f = ytFrame();
+  // tell the player we want state updates (repeat until it answers)
+  clearInterval(ytHandshake);
+  const hello = () => ytPost({ event: 'listening', id: 'syncops', channel: 'widget' });
+  f.addEventListener('load', () => { hello(); ytHandshake = setInterval(() => { if (W.yi.ready) clearInterval(ytHandshake); else hello(); }, 1000); });
   $('#ytDock').classList.remove('hidden');
   sfx.engage(); updateMini(); placeDock();
 }
 function closeYT() {
-  W.yt = null; $('#ytFrameBox').innerHTML = ''; $('#ytDock').classList.add('hidden'); updateMini();
+  clearInterval(ytHandshake);
+  W.yt = null; W.yi = {}; $('#ytFrameBox').innerHTML = ''; $('#ytDock').classList.add('hidden'); updateMini();
 }
+addEventListener('message', (e) => {
+  if (!W.yt || !/youtube(-nocookie)?\.com$/.test(new URL(e.origin || 'http://x').hostname)) return;
+  let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch { return; }
+  if (!d || !d.event) return;
+  if (d.event === 'onReady' || d.event === 'initialDelivery') {
+    W.yi.ready = true; ytCmd('setLoop', [true]); ytCmd('setVolume', [Math.round(wk().vol * 100)]);
+  }
+  if ((d.event === 'infoDelivery' || d.event === 'initialDelivery') && d.info) { Object.assign(W.yi, d.info); W.yi.ready = true; }
+  if (d.event === 'onStateChange') W.yi.playerState = d.info;
+  // Ended (0): restart — playlist goes back to song 1, single video repeats.
+  if (W.yi.playerState === 0 && !W.yi._restarting) {
+    W.yi._restarting = true;
+    const pl = Array.isArray(W.yi.playlist) ? W.yi.playlist : null;
+    if (pl && (W.yi.playlistIndex || 0) < pl.length - 1) ytCmd('nextVideo');
+    else if (pl) ytCmd('playVideoAt', [0]);
+    else { ytCmd('seekTo', [0, true]); ytCmd('playVideo'); }
+    setTimeout(() => { W.yi._restarting = false; }, 3000);
+  }
+  updateMini();
+});
 function placeDock() {
   const d = $('#ytDock'); if (!W.yt) { d.classList.add('hidden'); return; }
   d.classList.remove('hidden');
@@ -1492,101 +1572,84 @@ function placeDock() {
     Object.assign(d.style, { left: '', top: '', width: '', height: '' });
   }
 }
-setInterval(() => { if (W.yt) placeDock(); }, 400);
+setInterval(() => { if (W.yt) { placeDock(); updateTimes(); } }, 400);
 
 // ---------- view ----------
+function deckHTML() {
+  const w = wk(), d = deckInfo();
+  return `<div class="wm-stage"><div class="wm">
+    <div class="wm-top"><span class="wm-led deck-led ${d.playing ? 'on' : ''}"></span><span class="wm-tiny">POWER</span>
+      <span class="wm-hold"></span><span class="spacer"></span><span class="wm-src ${d.yt ? 'yt' : ''}">${d.yt ? 'YOUTUBE' : 'TAPE'}</span><span class="wm-grille"></span><span class="wm-jack"></span></div>
+    <div class="wm-body"><div class="wm-main">
+      <div class="wm-lcd">
+        <div class="lcd-row"><span class="lcd-lbl">TR</span><span class="seg" id="lcdTrack">${d.track}</span>
+          <span class="seg big" id="lcdTime">${lcdTime(d.cur)}</span>
+          <span class="lcd-flags"><i class="${w.shuffle && !d.yt ? 'on' : ''}">SHUF</i><i class="${d.yt || w.repeat !== 'off' ? 'on' : ''}">${!d.yt && w.repeat === 'one' ? 'RPT 1' : 'RPT'}</i></span></div>
+        <canvas id="vu" class="lcd-vu"></canvas>
+        <div class="lcd-name"><span id="lcdName">${esc(d.name || 'NO TAPE')}</span></div>
+        <div class="lcd-sub mono" id="lcdSub">${esc(d.sub)}</div>
+      </div>
+      <div class="wm-window"><div class="cassette">
+        <div class="cas-label"><span id="casName">${esc(d.name || 'SIDE A')}</span><b>A</b></div>
+        <div class="cas-mid"><div class="reel"><i></i></div><div class="cas-tape"></div><div class="reel"><i></i></div></div>
+        <div class="cas-foot"></div></div></div>
+      <div class="wm-seek"><input type="range" id="wSeek" min="0" max="1000" value="${d.dur ? d.cur / d.dur * 1000 : 0}" aria-label="Seek">
+        <div class="wm-times"><span id="wCur">${fmt(d.cur)}</span><span id="wDur">${fmt(d.dur)}</span></div></div>
+    </div>
+    <div class="wm-side">
+      <button class="wkey" data-w="prev" title="Previous">⏮</button>
+      <button class="wkey play" data-w="toggle" id="wPlay" title="Play / Pause">${d.playing ? '❚❚' : '▶'}</button>
+      <button class="wkey" data-w="next" title="Next">⏭</button>
+      <button class="wkey stop" data-w="stop" title="Stop">■</button>
+      <span class="wm-gap"></span>
+      <button class="wkey sm ${w.shuffle ? 'on' : ''}" data-wk="shuffle" title="Shuffle (music folder)">⤮</button>
+      <button class="wkey sm ${w.repeat !== 'off' ? 'on' : ''}" data-wk="repeat" title="Repeat (music folder)">${w.repeat === 'one' ? '↻1' : '↻'}</button>
+    </div></div>
+    <div class="wm-bottom"><span class="wm-badge">SYNC<br>TAPE</span>
+      <div class="wm-model"><b>SYNC-TAPE</b><span>PORTABLE CASSETTE · TYPE II</span></div>
+      <label class="wm-vol"><span>VOL</span><input type="range" id="wVol" min="0" max="1" step="0.02" value="${w.vol}" aria-label="Volume"></label></div>
+  </div></div>`;
+}
 function viewWalkman() {
   const w = wk();
   const tabs = `<button class="btn ${W.tab === 'local' ? '' : 'ghost'}" data-wk="tab" data-t="local">MUSIC FOLDER</button><button class="btn ${W.tab === 'yt' ? '' : 'ghost'}" data-wk="tab" data-t="yt">YOUTUBE</button>`;
   let html = head('PORTABLE AUDIO UNIT // SIDE A', 'WALKMAN', tabs);
+  let right;
   if (W.tab === 'yt') {
-    html += `<div class="walk-grid yt">
-      <div class="panel"><div class="panel-label">YOUTUBE PLAYER</div>
-        <div id="ytSlot" class="yt-slot">${W.yt ? '' : '<div class="yt-empty mono">PASTE A PLAYLIST OR VIDEO LINK →<br>OR PICK ONE FROM YOUR LIST</div>'}</div>
-        ${W.yt ? `<div class="row gap" style="margin-top:10px"><span class="mono" style="color:var(--orange)">▶ ${esc(W.yt.name)}</span><span class="spacer"></span>
-          <button class="btn small ghost" data-wk="yt-pop">POP-OUT WINDOW</button><button class="btn small danger" data-wk="yt-stop">STOP</button></div>` : ''}
-        <p class="micro" style="line-height:1.6;margin-bottom:0">IF THE PLAYER SHOWS AN ERROR, PRESS POP-OUT: IT OPENS A SMALL ALWAYS-ON-TOP YOUTUBE WINDOW. MUSIC KEEPS PLAYING WHEN YOU SWITCH SCREENS.</p>
-      </div>
-      <div class="panel"><div class="panel-label">ADD A PLAYLIST</div>
-        <div class="field"><label for="ytUrl">YOUTUBE LINK (PLAYLIST OR VIDEO)</label><input type="text" id="ytUrl" placeholder="https://www.youtube.com/playlist?list=…"></div>
-        <div class="field"><label for="ytName">NAME</label><input type="text" id="ytName" placeholder="e.g. Lo-fi for coding"></div>
-        <div class="row gap"><button class="btn go" data-wk="yt-add">SAVE + PLAY</button><button class="btn ghost" data-wk="yt-once">JUST PLAY</button></div>
-        <div class="panel-label" style="margin-top:20px">SAVED PLAYLISTS</div>
-        ${w.playlists.length ? w.playlists.map((p, i) => `<div class="pl-row"><span class="mono red">${pad(i + 1)}</span><span class="pl-name">${esc(p.name || p.url)}</span>
-          <button class="btn small" data-wk="yt-play" data-i="${i}">PLAY</button><button class="btn small ghost" data-wk="yt-popi" data-i="${i}">POP-OUT</button><button class="btn small ghost" data-wk="yt-del" data-i="${i}">✕</button></div>`).join('')
+    right = `<div class="panel tracks yt-panel"><div class="panel-label">YOUTUBE</div>
+      <div id="ytSlot" class="yt-slot">${W.yt ? '' : '<div class="yt-empty mono">PASTE A PLAYLIST OR VIDEO LINK BELOW</div>'}</div>
+      ${W.yt ? `<div class="row gap" style="margin-top:8px"><span class="spacer"></span><button class="btn small ghost" data-wk="yt-pop">POP-OUT WINDOW</button><button class="btn small danger" data-wk="yt-stop">EJECT</button></div>` : ''}
+      <div class="row gap" style="margin-top:12px"><input type="text" id="ytUrl" placeholder="https://www.youtube.com/playlist?list=…"><input type="text" id="ytName" placeholder="Name" style="max-width:170px"></div>
+      <div class="row gap" style="margin-top:8px"><button class="btn small go" data-wk="yt-add">SAVE + PLAY</button><button class="btn small ghost" data-wk="yt-once">JUST PLAY</button></div>
+      <div class="panel-label" style="margin-top:16px">SAVED PLAYLISTS</div>
+      ${w.playlists.length ? w.playlists.map((p, i) => `<div class="pl-row"><span class="mono" style="color:#9a90ff">${pad(i + 1)}</span><span class="pl-name">${esc(p.name || p.url)}</span>
+        <button class="btn small" data-wk="yt-play" data-i="${i}">PLAY</button><button class="btn small ghost" data-wk="yt-popi" data-i="${i}">POP-OUT</button><button class="btn small ghost" data-wk="yt-del" data-i="${i}">✕</button></div>`).join('')
         : '<div class="micro">NONE YET</div>'}
-      </div></div>`;
-    return html;
+      <p class="micro" style="line-height:1.6">THE WALKMAN BUTTONS CONTROL YOUTUBE TOO. VIDEOS REPEAT AND PLAYLISTS START OVER WHEN THEY END. IF THE PLAYER SHOWS AN ERROR, USE POP-OUT.</p>
+    </div>`;
+  } else {
+    const q = W.filter.toLowerCase();
+    const list = W.tracks.map((x, i) => ({ x, i })).filter(({ x }) => !q || x.name.toLowerCase().includes(q) || x.folder.toLowerCase().includes(q));
+    right = `<div class="panel tracks">
+      <div class="row gap"><div class="panel-label" style="margin:0">TRACKS</div><span class="spacer"></span><input type="text" id="wFilter" placeholder="Search…" value="${esc(W.filter)}" style="max-width:240px"></div>
+      <div class="track-list">${!W.scanned ? '<div class="micro" style="padding:10px">SCANNING…</div>' : list.length ? list.map(({ x, i }) => `<button class="trk ${i === W.idx && !W.yt ? 'cur' : ''}" data-wk="play" data-i="${i}"><span class="mono tn">${i === W.idx && !AUD.paused ? '▶' : pad(i + 1)}</span><span class="tt">${esc(x.name)}</span><span class="micro">${esc(x.folder)}</span></button>`).join('')
+        : `<div class="empty"><div class="title-card sm" style="transform-origin:center">No tapes found.</div><p class="mono" style="color:var(--muted)">Put MP3, FLAC, OGG, WAV or M4A files in your tape folder, then press RESCAN.</p><button class="btn" data-wk="open-dir">OPEN TAPE FOLDER</button></div>`}</div>
+    </div>`;
   }
-  const t = W.tracks[W.idx];
-  const q = W.filter.toLowerCase();
-  const list = W.tracks.map((x, i) => ({ x, i })).filter(({ x }) => !q || x.name.toLowerCase().includes(q) || x.folder.toLowerCase().includes(q));
   html += `<div class="folder-bar"><span class="micro">TAPE FOLDER</span><span class="mono fb-path">${esc(w.dir || '…')}</span><span class="spacer"></span>
       <button class="btn small" data-wk="open-dir">OPEN FOLDER</button><button class="btn small ghost" data-wk="pick-dir">CHANGE</button><button class="btn small ghost" data-wk="rescan">RESCAN</button></div>
-    <div class="walk-grid">
-    <div class="wm-stage">
-    <div class="wm">
-      <div class="wm-top">
-        <span class="wm-led deck-led ${!AUD.paused ? 'on' : ''}"></span><span class="wm-tiny">POWER</span>
-        <span class="wm-hold"></span><span class="spacer"></span><span class="wm-grille"></span><span class="wm-jack"></span>
-      </div>
-      <div class="wm-body">
-        <div class="wm-main">
-          <div class="wm-lcd">
-            <div class="lcd-row">
-              <span class="lcd-lbl">TR</span><span class="seg" id="lcdTrack">${W.idx >= 0 ? pad(W.idx + 1) : '--'}</span>
-              <span class="seg big" id="lcdTime">${lcdTime()}</span>
-              <span class="lcd-flags"><i class="${w.shuffle ? 'on' : ''}">SHUF</i><i class="${w.repeat !== 'off' ? 'on' : ''}">${w.repeat === 'one' ? 'RPT 1' : 'RPT'}</i></span>
-            </div>
-            <canvas id="vu" class="lcd-vu"></canvas>
-            <div class="lcd-name"><span id="lcdName">${t ? esc(t.name) : 'NO TAPE'}</span></div>
-          </div>
-          <div class="wm-window">
-            <div class="cassette">
-              <div class="cas-label"><span>${t ? esc(t.name) : 'SIDE A'}</span><b>A</b></div>
-              <div class="cas-mid"><div class="reel"><i></i></div><div class="cas-tape"></div><div class="reel"><i></i></div></div>
-              <div class="cas-foot"></div>
-            </div>
-          </div>
-          <div class="wm-seek"><input type="range" id="wSeek" min="0" max="1000" value="${AUD.duration ? AUD.currentTime / AUD.duration * 1000 : 0}" aria-label="Seek">
-            <div class="wm-times"><span id="wCur">${fmt(AUD.currentTime || 0)}</span><span id="wDur">${fmt(AUD.duration || 0)}</span></div></div>
-        </div>
-        <div class="wm-side">
-          <button class="wkey" data-w="prev" title="Previous">⏮</button>
-          <button class="wkey play" data-w="toggle" id="wPlay" title="Play / Pause">${AUD.paused ? '▶' : '❚❚'}</button>
-          <button class="wkey" data-w="next" title="Next">⏭</button>
-          <button class="wkey stop" data-wk="stop" title="Stop">■</button>
-          <span class="wm-gap"></span>
-          <button class="wkey sm ${w.shuffle ? 'on' : ''}" data-wk="shuffle" title="Shuffle">⤮</button>
-          <button class="wkey sm ${w.repeat !== 'off' ? 'on' : ''}" data-wk="repeat" title="Repeat">${w.repeat === 'one' ? '↻1' : '↻'}</button>
-        </div>
-      </div>
-      <div class="wm-bottom">
-        <span class="wm-badge">SYNC<br>TAPE</span>
-        <div class="wm-model"><b>SYNC-TAPE</b><span>PORTABLE CASSETTE · TYPE II · ${W.tracks.length} TRACKS</span></div>
-        <label class="wm-vol"><span>VOL</span><input type="range" id="wVol" min="0" max="1" step="0.02" value="${w.vol}" aria-label="Volume"></label>
-      </div>
-    </div>
-    </div>
-    <div class="panel tracks">
-      <div class="row gap"><div class="panel-label" style="margin:0">TRACKS</div><span class="spacer"></span><input type="text" id="wFilter" placeholder="Search…" value="${esc(W.filter)}" style="max-width:240px"></div>
-      <div class="track-list">${!W.scanned ? '<div class="micro" style="padding:10px">SCANNING…</div>' : list.length ? list.map(({ x, i }) => `<button class="trk ${i === W.idx ? 'cur' : ''}" data-wk="play" data-i="${i}"><span class="mono tn">${i === W.idx && !AUD.paused ? '▶' : pad(i + 1)}</span><span class="tt">${esc(x.name)}</span><span class="micro">${esc(x.folder)}</span></button>`).join('')
-      : `<div class="empty"><div class="title-card sm" style="transform-origin:center">No tapes found.</div><p class="mono" style="color:var(--muted)">Put MP3, FLAC, OGG, WAV or M4A files in your tape folder, then press RESCAN.</p><button class="btn" data-wk="open-dir">OPEN TAPE FOLDER</button></div>`}</div>
-    </div></div>`;
+    <div class="walk-grid">${deckHTML()}${right}</div>`;
   return html;
 }
 
 function bindWalkman(el) {
-  const w = wk();
   if (!el._wkBound) el._wkBound = true, el.addEventListener('click', async (e) => {
-    const w = wk();
-    const b = e.target.closest('[data-wk]'); if (!b) return;
+    const b = e.target.closest('[data-wk]'); if (!b || view !== 'walkman') return;
     e.stopPropagation();
-    const i = +b.dataset.i;
+    const w = wk(), i = +b.dataset.i;
     switch (b.dataset.wk) {
       case 'tab': W.tab = b.dataset.t; render(); break;
       case 'play': playIndex(i); break;
-      case 'stop': AUD.pause(); AUD.currentTime = 0; updateMini(); { const lt = $('#lcdTime'); if (lt) lt.textContent = lcdTime(); } break;
       case 'shuffle': w.shuffle = !w.shuffle; save(); render(); break;
       case 'repeat': w.repeat = { all: 'one', one: 'off', off: 'all' }[w.repeat]; save(); render(); toast('REPEAT: ' + w.repeat.toUpperCase()); break;
       case 'open-dir': window.ops.openPath(w.dir); break;
@@ -1605,20 +1668,20 @@ function bindWalkman(el) {
       case 'yt-del': w.playlists.splice(i, 1); save(); render(); break;
     }
   });
-  const seek = $('#wSeek', el); if (seek) seek.oninput = () => { if (AUD.duration) AUD.currentTime = seek.value / 1000 * AUD.duration; };
-  const vol = $('#wVol', el); if (vol) vol.oninput = () => { w.vol = +vol.value; AUD.volume = w.vol; save(); };
+  const seek = $('#wSeek', el); if (seek) seek.onchange = seek.oninput = () => wSeekFrac(seek.value / 1000);
+  const vol = $('#wVol', el); if (vol) vol.oninput = () => wSetVol(+vol.value);
   const f = $('#wFilter', el);
   if (f) f.oninput = () => { W.filter = f.value; const pos = f.selectionStart; render(); const nf = $('#wFilter'); nf.focus(); nf.setSelectionRange(pos, pos); };
   if (!W.scanned) scanMusic().then(() => { if (view === 'walkman') render(); });
-  if (!AUD.paused) vuLoop();
+  updateMini();
   setTimeout(placeDock, 0);
 }
 
-// Shared transport buttons (mini player, focus row, deck)
+// Shared transport buttons (deck, mini remote, focus row)
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-w]'); if (b) {
     e.stopPropagation();
-    ({ prev: wPrev, next: () => wNext(false), toggle: wToggle, open: () => setView('walkman') })[b.dataset.w]();
+    ({ prev: wPrev, next: () => wNext(false), toggle: wToggle, stop: wStop, open: () => setView('walkman') })[b.dataset.w]();
     return;
   }
   const y = e.target.closest('[data-y]'); if (y) {
@@ -1626,6 +1689,95 @@ document.addEventListener('click', (e) => {
     if (y.dataset.y === 'hide') { W.ytHidden = !W.ytHidden; placeDock(); }
   }
 });
+
+// =====================================================================
+// BACKGROUND HUD — random flashing terminal popups (original designs)
+// Flashing stays at or below ~2 per second (safe for photosensitivity guidelines).
+// =====================================================================
+const HUD = { timer: null, live: 0 };
+const HUD_WORDS = {
+  warn: ['WARNING', 'ALERT', 'CAUTION', 'EMERGENCY', 'OVERRIDE', 'LOCKDOWN', 'UNKNOWN SIGNAL'],
+  sys: ['LINK', 'CORE', 'GRID', 'RELAY', 'SECTOR', 'BUFFER', 'SIGNAL', 'UNIT', 'NODE', 'ARRAY'],
+  stat: ['NOMINAL', 'ONLINE', 'STANDBY', 'SYNCING', 'ENGAGED', 'OFFLINE', 'CRITICAL'],
+};
+const rnd = (a) => a[Math.random() * a.length | 0];
+const rint = (a, b) => a + (Math.random() * (b - a + 1) | 0);
+function hudItem() {
+  const type = rnd(['warn', 'warn', 'data', 'hex', 'target', 'cols', 'wave', 'radar', 'bars', 'code']);
+  const el = document.createElement('div');
+  el.className = 'hud-item hud-' + type;
+  let w = 200, h = 120;
+  switch (type) {
+    case 'warn': {
+      const word = rnd(HUD_WORDS.warn);
+      el.innerHTML = `<div class="hz"></div><div class="hw">${word}</div><div class="hs mono">${rnd(HUD_WORDS.sys)}-${rint(1, 99)} · ${rnd(HUD_WORDS.stat)}</div><div class="hz"></div>`;
+      w = rint(180, 320); h = 0; break;
+    }
+    case 'data': {
+      const lines = [`${rnd(HUD_WORDS.sys)} : ${rint(100, 999)}`, `FILE : ${rnd(HUD_WORDS.sys)}_${hex(3)}.DAT`, `STATE : ${rnd(HUD_WORDS.stat)}`, `LOAD : ${rint(10, 99)}.${rint(0, 9)}%`, `REF : 0x${hex(6)}`];
+      el.innerHTML = `<div class="hd-head">${rnd(HUD_WORDS.sys)}-${hex(2)}</div>` + lines.map(l => `<div>${l}</div>`).join('');
+      w = 210; h = 0; break;
+    }
+    case 'hex': {
+      el.innerHTML = Array.from({ length: rint(3, 6) }, (_, i) => `<i style="--x:${(i % 3) * 58 + (Math.floor(i / 3) % 2) * 29}px;--y:${Math.floor(i / 3) * 50}px;--d:${i * 0.12}s"><b>${rint(1, 9)}</b></i>`).join('');
+      w = 200; h = 110; break;
+    }
+    case 'target': {
+      el.innerHTML = `<span class="tc tl"></span><span class="tc tr"></span><span class="tc bl"></span><span class="tc br"></span><span class="tx"></span><span class="ty"></span>
+        <div class="tlbl mono">TARGET ${hex(2)} · ${rint(100, 999)}.${rint(10, 99)}</div>`;
+      w = h = rint(110, 190); break;
+    }
+    case 'cols': {
+      const c = ['#4cff8a', '#ff8a1c', '#45d6ff', '#ff1a2a', '#9b6bff'];
+      el.innerHTML = Array.from({ length: rint(3, 5) }, () => `<div style="color:${rnd(c)}">${Array.from({ length: rint(6, 11) }, () => `${rnd(HUD_WORDS.sys)}-${hex(2)}`).join('<br>')}</div>`).join('');
+      w = 300; h = 0; break;
+    }
+    case 'wave': {
+      const pts = Array.from({ length: 41 }, (_, i) => `${i * 5},${30 + Math.sin(i * 0.5 + Math.random()) * rint(8, 24)}`).join(' ');
+      el.innerHTML = `<svg viewBox="0 0 200 60" width="220" height="66"><polyline points="${pts}" fill="none" stroke="#4cff8a" stroke-width="1.5"/></svg><div class="mono wl">${rnd(HUD_WORDS.sys)} WAVEFORM</div>`;
+      w = 220; h = 90; break;
+    }
+    case 'radar': {
+      el.innerHTML = `<div class="rd"><i></i></div><div class="mono wl">SCAN ${rint(10, 99)}°</div>`;
+      w = h = 130; break;
+    }
+    case 'bars': {
+      el.innerHTML = Array.from({ length: 12 }, () => `<i style="height:${rint(10, 100)}%"></i>`).join('');
+      w = 160; h = 70; break;
+    }
+    case 'code': {
+      el.innerHTML = `<div class="big mono">${rint(0, 9)}${rint(0, 9)}${rint(0, 9)}</div><div class="mono wl">${rnd(HUD_WORDS.sys)} CODE</div>`;
+      w = 140; h = 90; break;
+    }
+  }
+  const W0 = innerWidth, H0 = innerHeight;
+  el.style.left = rint(0, Math.max(0, W0 - w - 10)) + 'px';
+  el.style.top = rint(70, Math.max(80, H0 - (h || 140) - 30)) + 'px';
+  if (type !== 'hex' && type !== 'radar' && Math.random() < 0.3) el.classList.add('red');
+  return el;
+}
+function hudTick() {
+  const lvl = S.settings.hud;
+  if (calm() || lvl === 'off' || document.hidden) return;
+  const max = lvl === 'high' ? 9 : 4;
+  if (HUD.live >= max) return;
+  const el = hudItem();
+  $('#hudfx').appendChild(el); HUD.live++;
+  const life = rint(1400, 3200);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); HUD.live--; }, 260); }, life);
+  if (Math.random() < 0.08 && lvl === 'high') { // occasional full-width alert sweep
+    const s = document.createElement('div'); s.className = 'hud-sweep';
+    s.innerHTML = `<span>${rnd(HUD_WORDS.warn)}</span>`.repeat(6);
+    $('#hudfx').appendChild(s); setTimeout(() => s.remove(), 1600);
+  }
+}
+function setHud() {
+  clearInterval(HUD.timer);
+  const lvl = S.settings.hud;
+  $('#hudfx').classList.toggle('low', lvl === 'low');
+  if (calm() || lvl === 'off') { $('#hudfx').innerHTML = ''; HUD.live = 0; return; }
+  HUD.timer = setInterval(hudTick, lvl === 'high' ? 420 : 1100);
+}
 
 // ---------- text size ----------
 // Effective zoom = your text-size choice × an automatic factor so big / full screens are filled properly.
@@ -1670,7 +1822,7 @@ async function boot() {
   document.body.classList.toggle('calm', S.settings.calm);
 
   $$('.nav-btn').forEach(b => b.onclick = () => setView(b.dataset.view));
-  $('#calmBtn').onclick = () => { S.settings.calm = !S.settings.calm; save(); refreshChrome(); setBg(); if (view === 'system') render(); };
+  $('#calmBtn').onclick = () => { S.settings.calm = !S.settings.calm; save(); refreshChrome(); setBg(); setHud(); if (view === 'system') render(); };
   $('#modalWrap').onclick = (e) => { if (e.target.id === 'modalWrap') closeModal(); };
   bindFocus(); bindGlobalSounds();
   tickClock(); setInterval(tickClock, 1000);
@@ -1681,7 +1833,7 @@ async function boot() {
   setInterval(() => { if (dayKey() !== lastDay) { lastDay = dayKey(); if ($('#focus').classList.contains('hidden')) render(); } }, 30000);
   loadCustomSounds();
   scanMusic();
-  render(); setBg();
+  render(); setBg(); setHud();
 
   const bootEl = $('#boot');
   if (S.settings.calm || matchMedia('(prefers-reduced-motion: reduce)').matches) { bootEl.remove(); maybeAutoOpen(); checkReminders(); return; }
