@@ -48,10 +48,11 @@
     <button class="nav-btn" data-view="today"><span class="n">02</span>TODAY</button>
     <button class="nav-btn" data-view="ops"><span class="n">03</span>ALL OPERATIONS</button>
     <button class="nav-btn" data-view="parked"><span class="n">04</span>PARKED THOUGHTS <span id="parkedCount" class="badge"></span></button>
-    <button class="nav-btn" data-view="walkman"><span class="n">05</span>WALKMAN</button>
-    <button class="nav-btn" data-view="rewards"><span class="n">06</span>REWARDS</button>
-    <button class="nav-btn" data-view="record"><span class="n">07</span>RECORD</button>
-    <button class="nav-btn" data-view="system"><span class="n">08</span>SYSTEM</button>
+    <button class="nav-btn" data-view="learn"><span class="n">05</span>LEARN <span id="dueCount" class="badge"></span></button>
+    <button class="nav-btn" data-view="walkman"><span class="n">06</span>WALKMAN</button>
+    <button class="nav-btn" data-view="rewards"><span class="n">07</span>REWARDS</button>
+    <button class="nav-btn" data-view="record"><span class="n">08</span>RECORD</button>
+    <button class="nav-btn" data-view="system"><span class="n">09</span>SYSTEM</button>
 
     <div class="hex-cluster" aria-label="Today summary">
       <div class="hex h1"><div><b id="hexDone">0</b><small>DONE</small></div></div>
@@ -97,6 +98,7 @@
         <button class="btn" id="fPause">PAUSE</button>
         <button class="btn" id="fPlus">+5 MIN</button>
         <button class="btn danger" id="fEnd">END OPERATION</button>
+        <button class="btn stuck" id="fStuck">I'M STUCK</button>
       </div>
       <div class="noise-box">
         <div class="panel-label">BACKGROUND NOISE <span class="micro">— SMALL BENEFIT IN STUDIES, TEST IF IT HELPS YOU</span></div>

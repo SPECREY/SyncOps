@@ -12,10 +12,12 @@ your music playing in the built-in Walkman — all inside a retro "operations te
 - **Recall check** — write what you learned after each task; get a warm-up quiz on it next time
 - **Points + rewards** — earn points for steps and finished tasks, spend them on rewards you choose
 - **Record** — 14-day history, focus time, streak, how your time estimates compare to reality
+- **Learn** — spaced review cards built from your recall notes, a "when I see… → try…" pattern library with a guess game, a C# code-tracing drill, a trophy room with a weekly look-back, and a "my why" motivation chain
+- **Try it first + I'm stuck** — guess before each lesson, and a 4-step routine for when you're stuck
 - **Walkman** — plays music from a local folder (MP3, FLAC, OGG, WAV, M4A) or YouTube playlists
 - **Calm mode**, text size setting, and full-screen scaling
 
-The SYSTEM screen inside the app lists the research behind each ADHD feature. SyncOps is a study tool, not a treatment.
+The SYSTEM screen inside the app lists the research behind each ADHD and learning feature. The LEARN features were inspired by Colin Galen's "Psych" video series; only ideas that line up with learning research were kept. SyncOps is a study tool, not a treatment.
 
 ## Run from source
 
@@ -31,6 +33,7 @@ npm start
 ```bash
 npm run dist                          # Linux AppImage  -> dist/SyncOps.AppImage
 npx electron-builder --win nsis       # Windows installer -> dist/SyncOps-Setup.exe (needs Wine when building on Linux)
+npx electron-builder --win zip -c.win.signAndEditExecutable=false   # Windows portable zip, no Wine needed
 ```
 
 On Linux, `linux/launch.sh` starts the AppImage whether or not FUSE is installed, and

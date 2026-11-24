@@ -396,6 +396,7 @@ function refreshChrome() {
   $('#ptsTop').textContent = `· ${S.points} PTS`;
   const open = S.parked.filter(x => !x.done).length;
   $('#parkedCount').textContent = open || '';
+  if (typeof dueCards === 'function' && S.learn) $('#dueCount').textContent = dueCards().length || '';
   $('#calmBtn').textContent = 'CALM MODE: ' + (S.settings.calm ? 'ON' : 'OFF');
   $('#calmBtn').classList.toggle('on', S.settings.calm);
   document.body.classList.toggle('calm', S.settings.calm);
@@ -413,11 +414,12 @@ function setView(v) {
 function render() {
   refreshChrome();
   const el = $('#view');
-  const fn = { hub: viewHub, today: viewToday, ops: viewOps, parked: viewParked, walkman: viewWalkman, rewards: viewRewards, record: viewRecord, system: viewSystem }[view];
+  const fn = { hub: viewHub, today: viewToday, ops: viewOps, parked: viewParked, learn: viewLearn, walkman: viewWalkman, rewards: viewRewards, record: viewRecord, system: viewSystem }[view];
   el.innerHTML = fn();
   el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter');
   bindView(el);
   if (view === 'walkman') bindWalkman(el); else placeDock();
+  if (view === 'learn') bindLearn(el);
   scramble($('.view-title .vt', el));
   $$('.title-card', el).forEach(t => scramble(t, 500));
 }
@@ -479,6 +481,13 @@ function viewHub() {
     </div>
   </div>`;
 
+  const dueN = dueCards().length, l = L();
+  html += `<div class="learn-tiles">
+    <button class="ltile ${dueN ? 'hot' : ''}" data-act="go-learn" data-t="review"><b>${dueN}</b><span>REVIEWS DUE</span></button>
+    <button class="ltile" data-act="go-learn" data-t="drill"><b>LV ${l.drill.level}</b><span>CODE DRILL</span></button>
+    <button class="ltile" data-act="go-learn" data-t="patterns"><b>${l.patterns.length}</b><span>PATTERNS</span></button>
+    <button class="ltile" data-act="go-learn" data-t="trophies"><b>${Object.keys(l.trophies).length}/${TROPHIES.length}</b><span>TROPHIES</span></button>
+  </div>${whyLine()}`;
   html += `<div class="hub-section"><div class="panel-label">APPS FOR TODAY <span class="micro">— FROM TODAY'S TASKS + YOUR PINS</span></div>
     ${apps.length ? `<div class="app-tiles">${apps.map((a, i) => `<button class="app-tile ${a.pinned ? 'pinned' : ''}" data-act="hub-launch" data-i="${i}" style="--d:${i * 40}ms">
         <span class="at-hex"></span><span class="at-code mono">UNIT-${pad(i + 1)}</span>
@@ -604,7 +613,7 @@ function viewRewards() {
     `<div class="stat-row">
       <div class="panel stat"><div class="panel-label">POINTS AVAILABLE</div><b>${S.points}</b></div>
       <div class="panel stat"><div class="panel-label">EARNED TODAY</div><b>${todayPts}</b></div>
-      <div class="panel stat"><div class="panel-label">HOW TO EARN</div><div class="mono" style="font-size:14px;line-height:1.7">STEP +${POINTS.step} · CHUNK +${POINTS.chunk}<br>TASK DONE +${POINTS.task} · RECALL +${POINTS.recall}<br>"ON TARGET" CHECK +${POINTS.ontask}</div></div>
+      <div class="panel stat"><div class="panel-label">HOW TO EARN</div><div class="mono" style="font-size:14px;line-height:1.7">STEP +${POINTS.step} · CHUNK +${POINTS.chunk}<br>TASK DONE +${POINTS.task} · RECALL +${POINTS.recall}<br>"ON TARGET" CHECK +${POINTS.ontask} · TRY FIRST +${LP.tryFirst}<br>REVIEW +${LP.review} · PATTERN +${LP.pattern} · DRILL +${LP.drill}</div></div>
     </div>
     <div class="panel"><div class="panel-label">REWARD MENU — MAKE THESE THINGS YOU ACTUALLY WANT</div>
     ${S.rewards.map((r, i) => `<div class="reward-row" style="--d:${i * 40}ms">
@@ -724,6 +733,10 @@ function viewSystem() {
     <li><b>VISIBLE TIMER · STUFF OPENED FOR YOU</b> — Barkley's clinical principles: make time and information external, and help at the "point of performance". <a href="#" data-url="https://continuingedcourses.net/course/adhd-goes-to-school-providing-teachers-and-parents-with-specific-management-strategies/">Source</a></li>
     <li><b>INSTANT FEEDBACK (SYNC RATE, POINTS)</b> — ADHD is linked to a strong preference for immediate over delayed rewards (Sonuga-Barke). <a href="#" data-url="https://eprints.soton.ac.uk/210968">Source</a></li>
     <li><b>MOVEMENT BREAKS</b> — meta-analyses of trials found exercise improves executive function in children and teens with ADHD. <a href="#" data-url="https://pmc.ncbi.nlm.nih.gov/articles/PMC10080114">Source</a></li>
+    <li><b>TRY IT FIRST (GUESS BEFORE THE LESSON)</b> — a meta-analysis of 53 studies (Sinha &amp; Kapur, 2021) compared trying problems before instruction with instruction first; trying first came out ahead overall, especially for school and university students. <a href="#" data-url="https://doi.org/10.3102/00346543211019105">Source</a></li>
+    <li><b>SPACED REVIEW CARDS · CODE DRILL · PATTERN GUESS GAME</b> — a major review of study techniques (Dunlosky et al., 2013) rated practice testing and spreading study over time as the two most useful; self-explanation ("explain it like teaching a friend") rated moderate. <a href="#" data-url="https://www.pubmed.gov/26173288/">Source</a></li>
+    <li><b>TROPHY ROOM · NO PUNISHMENT FOR FAILING</b> — youth with more ADHD symptoms showed stronger sensitivity to rejection in a lab study, so the app celebrates wins instead of making failure hurt. <a href="#" data-url="https://pmc.ncbi.nlm.nih.gov/articles/PMC6395560">Source</a></li>
+    <li><b>INSPIRATION</b> — the LEARN features were inspired by Colin Galen's "Psych" video series (experience-based advice from a competitive programmer); only ideas that line up with the research above were kept. <a href="#" data-url="https://www.youtube.com/playlist?list=PLDjGkpToBsYDIFOfF13ojutAkCODac9u5">Playlist</a></li>
     <li><b>NOT INCLUDED: BODY DOUBLING</b> — popular online, but no peer-reviewed controlled trials in adults with ADHD yet. <a href="#" data-url="https://arxiv.org/html/2509.12153v1">Source</a></li>
   </ul>
   <p class="micro" style="line-height:1.6">THIS APP IS A STUDY TOOL, NOT TREATMENT. IF ADHD IS AFFECTING YOUR LIFE A LOT, A DOCTOR OR PSYCHOLOGIST CAN HELP.</p></div>
@@ -768,6 +781,7 @@ function bindView(el) {
       case 'park-del': S.parked = S.parked.filter(x => x.id !== id); save(); render(); break;
       case 'park-clear': S.parked = S.parked.filter(x => !x.done); save(); render(); break;
       case 'measure': measureSpan(); break;
+      case 'go-learn': learnTab = a.dataset.t; setView('learn'); break;
       case 'zoom': setZoom(+a.dataset.z); render(); break;
       // hub
       case 'next-quote': quoteOffset++; render(); break;
@@ -1038,21 +1052,11 @@ function engage(t, tinyMin) {
   if (F.task && F.task.id === t.id && (F.running || F.phase === 'break')) { $('#focus').classList.remove('hidden'); return; }
   if (F.task && F.running) stopTimer();
   hideAlert(); closeModal();
-  // Warm-up recall quiz: retrieval practice on what you wrote last time
-  const last = S.recall.filter(r => r.taskId === t.id && r.day !== dayKey()).slice(-1)[0];
-  if (last && !tinyMin) {
-    const a = showAlert(`<div class="a-kicker">WARM-UP RECALL</div><div class="a-title">What did you learn last time?</div>
-      <div class="a-text">Try to remember it in your head first — no peeking. Then reveal your note from ${esc(last.day)}.</div>
-      <div class="recall-reveal hidden" id="rv">${esc(last.text)}</div>
-      <div class="a-btns"><button class="btn" data-x="reveal">REVEAL MY NOTE</button><button class="btn go" data-x="go">START OPERATION</button></div>`, true);
-    a.onclick = (e) => {
-      const b = e.target.closest('[data-x]'); if (!b) return;
-      if (b.dataset.x === 'reveal') { $('#rv').classList.remove('hidden'); b.remove(); sfx.step(); }
-      else { hideAlert(); startEngage(t); }
-    };
-    return;
-  }
-  startEngage(t, tinyMin);
+  if (tinyMin) { startEngage(t, tinyMin); return; }
+  // 1) warm-up: spaced review cards for this task that are due  2) try it first  3) start
+  const go = () => tryFirst(t, () => startEngage(t));
+  const due = dueCards(t.id).slice(0, 3);
+  if (due.length) runReviews(due, go, true); else go();
 }
 function startEngage(t, tinyMin) {
   F.task = t; F.chunkLen = (tinyMin || t.chunk || S.settings.attentionSpan) * 60; F.left = F.chunkLen; F.chunkNo = 1; F.sinceCue = 0; F.phase = 'work'; F.tiny = !!tinyMin;
@@ -1186,16 +1190,27 @@ function finishOp() {
   L.done = true; L.estimate = t.estimate;
   save();
   if (first) addPoints(POINTS.task, 'task done');
-  // Recall check (retrieval practice): write what you learned without looking
+  // Recall check (retrieval practice) — becomes a spaced review card; optional pattern
+  const guess = L.guess;
   const a = showAlert(`<div class="a-kicker">RECALL CHECK · +${POINTS.recall} PTS</div><div class="a-title">What do you remember?</div>
-    <div class="a-text">Without looking at the video or your code, write 1–3 things you learned. Testing yourself like this helps you remember.</div>
+    ${guess ? `<div class="guess-back">BEFORE THE LESSON YOU GUESSED: <span>${esc(guess)}</span><em>Were you close? Either way, guessing first helps it stick.</em></div>` : ''}
+    <div class="a-text">Without looking at the video or your code, write 1–3 things you learned.</div>
+    <input type="text" id="recallTitle" class="recall-title" placeholder="Concept name (e.g. for loops, Rigidbody, layers)">
     <textarea id="recallText" class="recall-input" placeholder="e.g. A 'for' loop repeats code. 'int' stores whole numbers…"></textarea>
+    <details class="pat-add"><summary>+ ADD A PATTERN (OPTIONAL, +${LP.pattern} PTS)</summary>
+      <div class="row gap"><input type="text" id="rpWhen" placeholder="When I see…"><input type="text" id="rpThen" placeholder="Try…"></div></details>
     <div class="a-btns"><button class="btn go" data-x="save">SAVE NOTE</button><button class="btn ghost" data-x="skip">SKIP</button></div>`, true);
-  setTimeout(() => $('#recallText')?.focus(), 50);
+  setTimeout(() => $('#recallTitle')?.focus(), 50);
   a.onclick = (e) => {
     const b = e.target.closest('[data-x]'); if (!b) return;
-    const txt = ($('#recallText').value || '').trim();
-    if (b.dataset.x === 'save' && txt) { S.recall.push({ id: uid(), taskId: t.id, day: dayKey(), text: txt }); addPoints(POINTS.recall, 'recall'); save(); }
+    const txt = ($('#recallText').value || '').trim(), title = ($('#recallTitle').value || '').trim();
+    const pw = ($('#rpWhen')?.value || '').trim(), pt = ($('#rpThen')?.value || '').trim();
+    if (b.dataset.x === 'save') {
+      if (txt) { S.recall.push({ id: uid(), taskId: t.id, day: dayKey(), text: txt }); makeCard(t.id, title || t.title, txt); addPoints(POINTS.recall, 'recall'); }
+      if (pw && pt) { learnState().patterns.push({ id: uid(), when: pw, then: pt, at: Date.now() }); addPoints(LP.pattern, 'pattern'); }
+      save();
+    }
+    checkTrophies();
     showComplete(t);
   };
 }
@@ -1216,6 +1231,7 @@ function showComplete(t) {
 }
 
 function bindFocus() {
+  $('#fStuck').onclick = () => stuckRoutine();
   $('#fStepDone').onclick = () => completeStep();
   $('#fSteps').onclick = (e) => { const li = e.target.closest('li'); if (li) completeStep(li.dataset.sid); };
   $('#fPause').onclick = () => { if (F.running) { stopTimer(); if (SND.noise) { SND.noise.src.stop(); SND.noise = null; } } else { startTimer(); setNoise(S.settings.noise); } };
@@ -1627,6 +1643,396 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// =====================================================================
+// LEARN — ideas from Colin Galen's "Psych" playlist, kept where learning research agrees
+//   try-first (productive failure), spaced self-testing (review cards), pattern library,
+//   stuck routine, trophy room (against "feasibility bias"), code-tracing drill, why-chain
+// =====================================================================
+const LP = { review: 5, pattern: 10, drill: 5, tryFirst: 5, stuck: 5 };
+const INTERVALS = [1, 3, 7, 14, 30, 60];      // days between reviews as a card gets stronger
+let learnTab = 'review';
+
+function L() {
+  return (S.learn ||= { cards: [], patterns: [], wins: [], trophies: {}, why: { chain: [], core: '', picture: '' },
+    drill: { level: 1, correct: 0, total: 0, streak: 0, best: 0, levelStreak: 0 }, stuck: [], tries: 0, reviews: 0, lastWeekly: '', seeded: false });
+}
+function learnState() { return L(); }
+const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return dayKey(d); };
+const dueCards = (taskId) => L().cards.filter(c => c.due <= dayKey() && (!taskId || c.taskId === taskId));
+
+// ---------- starter patterns (accurate Unity / C# basics) ----------
+const STARTER_PATTERNS = [
+  ['An object falls through the floor', 'Both objects need Colliders and the moving one needs a Rigidbody; for fast objects set Collision Detection to Continuous'],
+  ['Movement speed changes with frame rate', 'Multiply movement by Time.deltaTime'],
+  ['NullReferenceException', 'Something was never assigned — check Inspector fields and the result of GetComponent / Find'],
+  ['Need to repeat code a set number of times', 'Use a for loop'],
+  ['Physics movement looks jittery', 'Move the Rigidbody in FixedUpdate (or use Rigidbody methods), not by changing the Transform in Update'],
+  ['A variable does not show in the Inspector', 'Make it public or add [SerializeField]'],
+  ['Need something to happen after a delay', 'Use a coroutine with yield return new WaitForSeconds(...), or Invoke'],
+  ['OnCollisionEnter / OnTriggerEnter never fires', 'At least one object needs a Rigidbody; triggers need "Is Trigger" ticked; check the method name spelling'],
+];
+function seedPatterns() {
+  const l = L(); if (l.seeded) return;
+  STARTER_PATTERNS.forEach(([when, then]) => l.patterns.push({ id: uid(), when, then, starter: true, at: Date.now() }));
+  l.seeded = true;
+}
+
+// ---------- trophies ----------
+function totals() {
+  let done = 0, sec = 0;
+  Object.values(S.log).forEach(day => Object.values(day).forEach(x => { if (x.done) done++; sec += x.seconds || 0; }));
+  let streak = 0;
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    if (Object.values(S.log[dayKey(d)] || {}).some(x => x.done)) streak++; else if (i > 0) break;
+  }
+  return { done, min: Math.round(sec / 60), streak };
+}
+const TROPHIES = [
+  ['first-op', 'FIRST OPERATION', 'Finished your first task', (t) => t.done >= 1],
+  ['ops-5', 'FIVE DOWN', 'Finished 5 tasks', (t) => t.done >= 5],
+  ['ops-25', 'TWENTY-FIVE', 'Finished 25 tasks', (t) => t.done >= 25],
+  ['ops-100', 'CENTURY', 'Finished 100 tasks', (t) => t.done >= 100],
+  ['streak-3', 'THREE IN A ROW', 'Finished something 3 days in a row', (t) => t.streak >= 3],
+  ['streak-7', 'FULL WEEK', '7-day streak', (t) => t.streak >= 7],
+  ['streak-30', 'IRON ROUTINE', '30-day streak', (t) => t.streak >= 30],
+  ['focus-60', 'FIRST HOUR', '1 hour of focused work', (t) => t.min >= 60],
+  ['focus-600', 'TEN HOURS', '10 hours of focused work', (t) => t.min >= 600],
+  ['focus-3000', 'FIFTY HOURS', '50 hours of focused work', (t) => t.min >= 3000],
+  ['recall-1', 'FIRST NOTE', 'Wrote your first recall note', () => S.recall.length >= 1],
+  ['review-10', 'MEMORY WORKOUT', 'Did 10 reviews', () => L().reviews >= 10],
+  ['review-50', 'LONG-TERM MEMORY', 'Did 50 reviews', () => L().reviews >= 50],
+  ['pattern-5', 'PATTERN SPOTTER', 'Added 5 of your own patterns', () => L().patterns.filter(p => !p.starter).length >= 5],
+  ['tryfirst-5', 'INVENTOR', 'Tried it yourself first 5 times', () => L().tries >= 5],
+  ['stuck-1', 'UNSTUCK', 'Used the stuck routine', () => L().stuck.length >= 1],
+  ['drill-10', 'MIND\'S EYE', '10 correct code-tracing answers', () => L().drill.correct >= 10],
+  ['drill-l3', 'NO PEEKING', 'Reached drill level 3', () => L().drill.level >= 3],
+  ['why', 'KNOW YOUR WHY', 'Set your reason in MY WHY', () => !!L().why.core],
+];
+function checkTrophies(quiet) {
+  const t = totals(), got = L().trophies, fresh = [];
+  TROPHIES.forEach(([id, name, , test]) => { if (!got[id] && test(t)) { got[id] = Date.now(); fresh.push(name); } });
+  if (fresh.length) {
+    save();
+    if (!quiet) { sfx.complete(); flashRed(); toast('TROPHY UNLOCKED: ' + fresh.join(' · ')); }
+  }
+  return fresh;
+}
+
+// ---------- review cards ----------
+function makeCard(taskId, title, text) {
+  L().cards.push({ id: uid(), taskId, title: title || 'What I learned', text, created: dayKey(), due: addDays(1), step: 0, history: [] });
+}
+function rateCard(card, rating) {
+  if (rating === 'got') card.step = Math.min(card.step + 1, INTERVALS.length - 1);
+  if (rating === 'forgot') card.step = 0;
+  const days = rating === 'partly' ? Math.max(1, Math.round(INTERVALS[card.step] / 2)) : INTERVALS[card.step];
+  card.due = addDays(days);
+  card.history.push({ day: dayKey(), rating });
+  L().reviews++;
+  addPoints(LP.review, 'review');
+  save(); checkTrophies();
+  return days;
+}
+// Run reviews one by one in an alert. onDone runs after the last card (or skip).
+function runReviews(cards, onDone, warmup) {
+  let i = 0;
+  const next = () => {
+    if (i >= cards.length) { hideAlert(); onDone && onDone(); return; }
+    const c = cards[i], t = S.tasks.find(x => x.id === c.taskId);
+    const a = showAlert(`<div class="a-kicker">${warmup ? 'WARM-UP REVIEW' : 'REVIEW'} · ${i + 1}/${cards.length}</div>
+      <div class="a-title">${esc(c.title)}</div>
+      <div class="a-text">${t ? esc(t.title) + ' · ' : ''}Explain it like you're teaching a friend — type it or say it out loud. Then check your note.</div>
+      <textarea id="rvText" class="recall-input" placeholder="Explain it in your own words…"></textarea>
+      <div class="recall-reveal hidden" id="rvNote">${esc(c.text)}</div>
+      <div class="a-btns" id="rvBtns"><button class="btn" data-x="reveal">CHECK MY NOTE</button><button class="btn ghost" data-x="skip">${warmup ? 'SKIP TO TASK' : 'STOP REVIEWING'}</button></div>`, true);
+    setTimeout(() => $('#rvText')?.focus(), 50);
+    a.onclick = (e) => {
+      const b = e.target.closest('[data-x]'); if (!b) return;
+      if (b.dataset.x === 'reveal') {
+        $('#rvNote').classList.remove('hidden'); sfx.step();
+        $('#rvBtns').innerHTML = `<span class="micro" style="width:100%">HOW DID YOU DO?</span>
+          <button class="btn go" data-x="got">GOT IT</button><button class="btn" data-x="partly">PARTLY</button><button class="btn danger" data-x="forgot">FORGOT</button>`;
+      } else if (['got', 'partly', 'forgot'].includes(b.dataset.x)) {
+        const days = rateCard(c, b.dataset.x);
+        toast(b.dataset.x === 'forgot' ? 'NO PROBLEM — IT COMES BACK TOMORROW. FORGETTING IS PART OF IT.' : `NEXT REVIEW IN ${days} DAY(S)`);
+        i++; next();
+      } else { hideAlert(); onDone && onDone(); }
+    };
+  };
+  next();
+}
+
+// ---------- why chain ----------
+function whyLine() { const w = L().why; return w.core ? `<div class="why-line">MY WHY ▸ <b>${esc(w.core)}</b>${w.picture ? ` — ${esc(w.picture)}` : ''}</div>` : ''; }
+
+// ---------- try it first ----------
+function tryFirst(t, go) {
+  if (t.tryFirst === false) return go();
+  const prompt = t.tryPrompt || `Before you watch: what do you think today's lesson will teach, and how would you do it yourself? Guess — being wrong is fine.`;
+  let sec = 0;
+  const a = showAlert(`<div class="a-kicker">TRY IT FIRST · +${LP.tryFirst} PTS</div><div class="a-title">Take a guess.</div>
+    ${whyLine()}
+    <div class="a-text">${esc(prompt)}</div>
+    <textarea id="tfText" class="recall-input" placeholder="My guess / my attempt…"></textarea>
+    <div class="micro" id="tfTime" style="margin-top:6px">0:00 — try for 2–5 minutes, then start</div>
+    <div class="a-btns"><button class="btn go" data-x="save">SAVE GUESS + START</button><button class="btn ghost" data-x="skip">SKIP TODAY</button></div>`, true);
+  setTimeout(() => $('#tfText')?.focus(), 50);
+  const iv = setInterval(() => { sec++; const el = $('#tfTime'); if (el) el.textContent = `${Math.floor(sec / 60)}:${pad(sec % 60)} — try for 2–5 minutes, then start`; else clearInterval(iv); }, 1000);
+  a.onclick = (e) => {
+    const b = e.target.closest('[data-x]'); if (!b) return;
+    clearInterval(iv);
+    const txt = ($('#tfText').value || '').trim();
+    if (b.dataset.x === 'save' && txt) { taskLog(t.id).guess = txt; L().tries++; addPoints(LP.tryFirst, 'tried first'); save(); checkTrophies(); }
+    hideAlert(); go();
+  };
+}
+
+// ---------- I'm stuck routine ----------
+function stuckRoutine() {
+  if (!F.task) return;
+  const started = Date.now(), t = F.task;
+  const steps = [
+    ['SIMPLER VERSION', 'Make the problem smaller: one object instead of ten, one line instead of the whole script. Try a tiny example by hand.'],
+    ['5 WILD IDEAS', 'Write down 5 ideas — even silly ones. When you are stuck, the answer is often an idea you would normally throw away.'],
+    ['5-MINUTE RESET', 'Walk away from the screen. Your brain keeps working on it in the background.'],
+    ['HINT OR ANSWER', 'You gave it a real try, so now look at the answer or ask for a hint. It will stick better because you struggled first.'],
+  ];
+  let brk = null;
+  const draw = () => {
+    const a = showAlert(`<div class="a-kicker">STUCK ROUTINE · ${esc(t.title)}</div><div class="a-title">Stuck is normal.</div>
+      <div class="stuck-steps">${steps.map(([h, d], i) => `<label class="stuck-step"><input type="checkbox" data-s="${i}"><div><b>${i + 1}. ${h}</b><span>${d}</span></div></label>`).join('')}</div>
+      <textarea id="wildIdeas" class="recall-input" placeholder="Wild ideas (saved to Parked Thoughts)…" style="min-height:70px"></textarea>
+      <div class="a-big hidden" id="stuckBrk">05:00</div>
+      <div class="a-btns"><button class="btn" data-x="break">START 5-MIN RESET</button><button class="btn go" data-x="done">BACK TO WORK</button></div>`, true);
+    a.onclick = (e) => {
+      const b = e.target.closest('[data-x]'); if (!b) return;
+      if (b.dataset.x === 'break') {
+        stopTimer(); let left = 300; $('#stuckBrk').classList.remove('hidden'); b.remove();
+        brk = setInterval(() => { left--; const el = $('#stuckBrk'); if (el) el.textContent = fmt(left); if (left <= 0) { clearInterval(brk); sfx.chime(); toast('RESET DONE — BACK TO IT'); } }, 1000);
+      } else {
+        clearInterval(brk);
+        const ideas = ($('#wildIdeas').value || '').trim();
+        if (ideas) addParked('Wild ideas: ' + ideas.replace(/\n+/g, ' · '), t.title);
+        const mins = Math.round((Date.now() - started) / 60000);
+        L().stuck.push({ at: Date.now(), taskId: t.id, mins, peeked: $('[data-s="3"]')?.checked || false });
+        addPoints(LP.stuck, 'used stuck routine'); save(); checkTrophies();
+        hideAlert(); if (!F.running && F.phase === 'work') startTimer();
+      }
+    };
+  };
+  draw();
+}
+
+// ---------- code-tracing drill (original C# snippets) ----------
+const DRILL = [
+  { lv: 1, code: 'int a = 3;\nint b = a * 2;\na = a + b;\nConsole.WriteLine(a);', q: 'What is printed?', opts: ['9', '6', '12', '3'], a: 0, why: 'b is 6, then a becomes 3 + 6 = 9.' },
+  { lv: 1, code: 'string name = "Unity";\nConsole.WriteLine(name.Length);', q: 'What is printed?', opts: ['5', '4', '6', 'Unity'], a: 0, why: '"Unity" has 5 characters.' },
+  { lv: 1, code: 'int[] nums = { 4, 8, 15, 16 };\nConsole.WriteLine(nums[2]);', q: 'What is printed?', opts: ['15', '8', '16', '4'], a: 0, why: 'Arrays start at index 0, so index 2 is the third item: 15.' },
+  { lv: 1, code: 'int count = 0;\nwhile (count < 3)\n{\n    count++;\n}\nConsole.WriteLine(count);', q: 'What is printed?', opts: ['3', '2', '4', '0'], a: 0, why: 'The loop stops when count reaches 3.' },
+  { lv: 1, code: 'int score = 5;\nscore++;\nscore *= 2;\nConsole.WriteLine(score);', q: 'What is printed?', opts: ['12', '11', '10', '7'], a: 0, why: '5 + 1 = 6, then 6 × 2 = 12.' },
+  { lv: 1, code: 'int r = 10 % 3;\nConsole.WriteLine(r);', q: 'What is printed?', opts: ['1', '3', '0', '3.33'], a: 0, why: '% gives the remainder: 10 = 3 × 3 + 1.' },
+  { lv: 1, code: 'int level = 3;\nstring msg = level > 2 ? "Hard" : "Easy";\nConsole.WriteLine(msg);', q: 'What is printed?', opts: ['Hard', 'Easy', 'True', '3'], a: 0, why: '3 > 2 is true, so the first value is chosen.' },
+  { lv: 2, code: 'int total = 0;\nfor (int i = 1; i <= 4; i++)\n{\n    total += i;\n}\nConsole.WriteLine(total);', q: 'What is printed?', opts: ['10', '6', '15', '4'], a: 0, why: '1 + 2 + 3 + 4 = 10.' },
+  { lv: 2, code: 'int x = 7 / 2;\nConsole.WriteLine(x);', q: 'What is printed?', opts: ['3', '3.5', '4', '2'], a: 0, why: 'Dividing two ints throws away the decimal part: 3.' },
+  { lv: 2, code: 'int hp = 100;\nhp -= 30;\nif (hp < 50) { hp = 50; }\nelse { hp += 10; }\nConsole.WriteLine(hp);', q: 'What is printed?', opts: ['80', '70', '50', '60'], a: 0, why: 'hp is 70, which is not below 50, so 10 is added: 80.' },
+  { lv: 2, code: 'bool alive = true;\nint lives = 0;\nif (lives == 0) alive = false;\nConsole.WriteLine(alive);', q: 'What is printed?', opts: ['False', 'True', '0', 'Error'], a: 0, why: 'lives is 0, so alive is set to false (C# prints "False").' },
+  { lv: 2, code: 'for (int i = 0; i < 5; i += 2)\n{\n    Console.Write(i);\n}', q: 'What is printed?', opts: ['024', '01234', '0246', '24'], a: 0, why: 'i goes 0, 2, 4, then 6 stops the loop.' },
+  { lv: 2, code: 'float speed = 10f;\nfloat dt = 0.5f;\nfloat dist = speed * dt;\nConsole.WriteLine(dist);', q: 'What is printed?', opts: ['5', '20', '10.5', '0.5'], a: 0, why: '10 × 0.5 = 5.' },
+  { lv: 2, code: 'Vector3 pos = new Vector3(1, 2, 0);\npos.x += 4;\nDebug.Log(pos.x);', q: 'What is logged?', opts: ['5', '4', '6', '1'], a: 0, why: 'x starts at 1, plus 4 is 5.' },
+  { lv: 3, code: 'string s = "";\nfor (int i = 0; i < 3; i++)\n{\n    s += i;\n}\nConsole.WriteLine(s);', q: 'What is printed?', opts: ['012', '3', '0123', '123'], a: 0, why: 'Adding a number to a string joins it as text: "0", "01", "012".' },
+  { lv: 3, code: 'int Double(int n) { return n * 2; }\n\nConsole.WriteLine(Double(Double(3)));', q: 'What is printed?', opts: ['12', '6', '9', '36'], a: 0, why: 'Double(3) is 6, and Double(6) is 12.' },
+  { lv: 3, code: 'var list = new List<int>();\nlist.Add(5);\nlist.Add(7);\nlist.Remove(5);\nConsole.WriteLine(list.Count);', q: 'What is printed?', opts: ['1', '2', '7', '0'], a: 0, why: 'Two items were added and one removed: Count is 1.' },
+  { lv: 3, code: 'int x = 2;\nint y = x++ + 3;\nConsole.WriteLine(x + " " + y);', q: 'What is printed?', opts: ['3 5', '3 6', '2 5', '2 6'], a: 0, why: 'x++ uses the old value (2) and then increases x, so y = 5 and x = 3.' },
+  { lv: 3, code: 'int sum = 0;\nforeach (int n in new int[] { 2, 4, 6 })\n{\n    if (n == 4) continue;\n    sum += n;\n}\nConsole.WriteLine(sum);', q: 'What is printed?', opts: ['8', '12', '6', '10'], a: 0, why: 'continue skips 4, so 2 + 6 = 8.' },
+  { lv: 3, code: 'string a = "Game";\nstring b = a;\nb += "Dev";\nConsole.WriteLine(a);', q: 'What is printed?', opts: ['Game', 'GameDev', 'Dev', 'null'], a: 0, why: 'Strings cannot be changed in place; b += makes a new string, so a stays "Game".' },
+];
+const SHOW_SEC = { 1: 0, 2: 20, 3: 12 };   // level 1: code stays visible; 2: hide after 20 s; 3: 12 s
+function hl(code) {
+  return esc(code)
+    .replace(/(&quot;.*?&quot;)/g, '<span class="c-str">$1</span>')
+    .replace(/\b(int|float|string|bool|var|new|for|foreach|in|while|if|else|return|true|false|continue)\b/g, '<span class="c-kw">$1</span>')
+    .replace(/\b(\d+f?)\b/g, '<span class="c-num">$1</span>');
+}
+function drillSession() {
+  const d = L().drill, pool = DRILL.filter(x => x.lv === d.level);
+  const qs = [...pool].sort(() => Math.random() - 0.5).slice(0, 5);
+  let i = 0, right = 0;
+  const ask = () => {
+    if (i >= qs.length) {
+      const a = showAlert(`<div class="a-kicker">DRILL COMPLETE · LEVEL ${d.level}</div><div class="a-title">${right}/${qs.length} correct</div>
+        <div class="a-text">${right >= 4 ? 'Strong. Your mental picture of code is getting sharper.' : 'Good practice. Tracing code in your head gets easier with repetition.'}</div>
+        <div class="a-btns"><button class="btn go" data-x="ok">DONE</button></div>`, true);
+      a.onclick = (e) => { if (e.target.closest('[data-x]')) { hideAlert(); render(); } };
+      return;
+    }
+    const q = qs[i], order = q.opts.map((o, k) => k).sort(() => Math.random() - 0.5);
+    const show = SHOW_SEC[d.level];
+    const a = showAlert(`<div class="a-kicker">CODE TRACING · LEVEL ${d.level} · ${i + 1}/${qs.length}</div>
+      <div class="a-text">${show ? `Read the code. It hides in <b id="drT">${show}</b> s — then answer from memory.` : 'Read the code and trace it in your head.'}</div>
+      <div class="code-box" id="drCode"><pre>${hl(q.code)}</pre><div class="code-hide hidden">◼ MEMORY MODE ◼</div></div>
+      <div class="a-text" style="margin-top:10px"><b>${esc(q.q)}</b></div>
+      <div class="a-btns" id="drOpts">${order.map(k => `<button class="btn" data-o="${k}">${esc(q.opts[k])}</button>`).join('')}</div>`, true);
+    let left = show, iv = null;
+    const hide = () => { $('#drCode .code-hide')?.classList.remove('hidden'); };
+    if (show) iv = setInterval(() => { left--; const el = $('#drT'); if (el) el.textContent = Math.max(0, left); if (left <= 0) { clearInterval(iv); hide(); } }, 1000);
+    a.onclick = (e) => {
+      const b = e.target.closest('[data-o]'); if (!b) { if (e.target.closest('[data-x="next"]')) { i++; ask(); } return; }
+      clearInterval(iv);
+      const ok = +b.dataset.o === q.a;
+      d.total++;
+      if (ok) {
+        right++; d.correct++; d.streak++; d.levelStreak++; d.best = Math.max(d.best, d.streak); sfx.step(); addPoints(LP.drill, 'drill');
+        if (d.levelStreak >= 8 && d.level < 3) { d.level++; d.levelStreak = 0; toast(`LEVEL UP — DRILL LEVEL ${d.level}: THE CODE NOW HIDES SOONER`); }
+      } else { d.streak = 0; d.levelStreak = 0; sfx.click(); }
+      save(); checkTrophies();
+      $('#drCode .code-hide')?.classList.add('hidden');
+      $('#drOpts').innerHTML = `<div class="a-text" style="width:100%;color:${ok ? 'var(--green)' : 'var(--orange)'}">${ok ? '✓ CORRECT' : '✗ ANSWER: ' + esc(q.opts[q.a])} — ${esc(q.why)}</div><button class="btn go" data-x="next">NEXT</button>`;
+    };
+  };
+  ask();
+}
+
+// ---------- weekly look-back ----------
+function maybeWeekly() {
+  const l = L(), today = dayKey();
+  if (l.lastWeekly && (new Date(today) - new Date(l.lastWeekly)) / 86400000 < 7) return false;
+  const days = []; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() - i); days.push(dayKey(d)); }
+  let done = 0, sec = 0; days.forEach(k => Object.values(S.log[k] || {}).forEach(x => { if (x.done) done++; sec += x.seconds || 0; }));
+  const firstDay = l.lastWeekly;
+  l.lastWeekly = today; save();
+  if (!firstDay || (!done && !sec)) return false;      // first run or nothing to show
+  const weekAgo = Date.now() - 7 * 86400000;
+  const newT = TROPHIES.filter(([id]) => (l.trophies[id] || 0) > weekAgo).map(x => x[1]);
+  const a = showAlert(`<div class="a-kicker">WEEK IN REVIEW</div><div class="a-title">Look how far you've come.</div>
+    <div class="a-text">This week: <b>${done}</b> task(s) finished · <b>${Math.round(sec / 60)}</b> min of focus · <b>${l.reviews}</b> reviews total${newT.length ? `<br>New trophies: <b>${newT.map(esc).join(', ')}</b>` : ''}</div>
+    <div class="a-text" style="margin-top:10px;color:var(--cyan)">Things that feel easy now were hard once. That is progress, even when it doesn't feel like it.</div>
+    <div class="a-btns"><button class="btn go" data-x="ok">OPEN TROPHY ROOM</button><button class="btn ghost" data-x="no">LATER</button></div>`, true);
+  a.onclick = (e) => { const b = e.target.closest('[data-x]'); if (!b) return; hideAlert(); if (b.dataset.x === 'ok') { learnTab = 'trophies'; setView('learn'); } };
+  return true;
+}
+
+// ---------- LEARN view ----------
+function viewLearn() {
+  const l = L(), due = dueCards();
+  const tabs = [['review', `REVIEW${due.length ? ' (' + due.length + ')' : ''}`], ['patterns', 'PATTERNS'], ['trophies', 'TROPHIES'], ['drill', 'CODE DRILL'], ['why', 'MY WHY']]
+    .map(([k, n]) => `<button class="btn ${learnTab === k ? '' : 'ghost'}" data-lt="${k}">${n}</button>`).join('');
+  let html = head('REMEMBER IT · SPOT IT · SEE IT', 'LEARN', '') + `<div class="row gap wrap" style="margin-bottom:16px">${tabs}</div>`;
+
+  if (learnTab === 'review') {
+    const upcoming = [...l.cards].sort((a, b) => a.due.localeCompare(b.due));
+    html += `<div class="two">
+      <div class="panel"><div class="panel-label">DUE TODAY</div>
+        <div class="stat"><b>${due.length}</b></div>
+        <p class="mono" style="color:var(--muted)">Each recall note becomes a card. You explain it from memory, check your note, and the card comes back later — sooner if you forgot, later if you knew it.</p>
+        ${due.length ? `<button class="btn engage" data-l="review-all">REVIEW NOW</button>` : '<div class="micro green">ALL CAUGHT UP</div>'}</div>
+      <div class="panel"><div class="panel-label">ALL CARDS (${l.cards.length})</div>
+        ${upcoming.length ? upcoming.slice(0, 40).map(c => `<div class="card-row"><span class="mono ${c.due <= dayKey() ? 'red' : ''}">${c.due <= dayKey() ? 'DUE' : c.due.slice(5)}</span><span>${esc(c.title)}</span><span class="micro">STRENGTH ${c.step + 1}/${INTERVALS.length}</span><button class="btn small ghost" data-l="card-del" data-id="${c.id}">✕</button></div>`).join('')
+        : '<p class="mono" style="color:var(--muted)">No cards yet. Finish a task and write a recall note — it becomes your first card.</p>'}
+        <div class="row gap" style="margin-top:12px"><input type="text" id="cardTitle" placeholder="Concept (e.g. for loops)"><input type="text" id="cardText" placeholder="What I know about it"><button class="btn small" data-l="card-add">ADD</button></div>
+      </div></div>`;
+  }
+  if (learnTab === 'patterns') {
+    html += `<div class="panel"><div class="panel-label">WHEN I SEE… → TRY…</div>
+      <p class="mono" style="color:var(--muted);margin-top:0">Link problem patterns to solution ideas, so next time the answer "smells" familiar. Add one after every tricky bug or lesson.</p>
+      <div class="row gap"><input type="text" id="patWhen" placeholder="When I see… (e.g. my jump works twice in the air)"><input type="text" id="patThen" placeholder="Try… (e.g. check isGrounded before jumping)"><button class="btn" data-l="pat-add">ADD +${LP.pattern}</button></div>
+      <div style="margin:14px 0"><button class="btn go" data-l="pat-game" ${l.patterns.length ? '' : 'disabled'}>GUESS GAME — TEST YOURSELF</button></div>
+      ${l.patterns.slice().reverse().map(p => `<div class="pat-row"><div class="pw">${esc(p.when)}</div><div class="pa">→</div><div class="pt">${esc(p.then)}</div><span class="micro">${p.starter ? 'STARTER' : ''}</span><button class="btn small ghost" data-l="pat-del" data-id="${p.id}">✕</button></div>`).join('')}
+    </div>`;
+  }
+  if (learnTab === 'trophies') {
+    const t = totals(), got = l.trophies;
+    const firstNotes = S.recall.slice(0, 3), lastNotes = S.recall.slice(-3).reverse();
+    html += `<div class="stat-row four">
+      <div class="panel stat"><div class="panel-label">TROPHIES</div><b>${Object.keys(got).length}/${TROPHIES.length}</b></div>
+      <div class="panel stat"><div class="panel-label">TASKS FINISHED</div><b>${t.done}</b></div>
+      <div class="panel stat"><div class="panel-label">FOCUS HOURS</div><b>${(t.min / 60).toFixed(1)}</b></div>
+      <div class="panel stat"><div class="panel-label">REVIEWS</div><b>${l.reviews}</b></div></div>
+    <div class="trophy-grid">${TROPHIES.map(([id, name, desc]) => `<div class="trophy ${got[id] ? 'on' : ''}"><div class="th"><i></i></div><b>${name}</b><span>${desc}</span>${got[id] ? `<em>${new Date(got[id]).toLocaleDateString()}</em>` : '<em>LOCKED</em>'}</div>`).join('')}</div>
+    <div class="two" style="margin-top:18px">
+      <div class="panel"><div class="panel-label">MY WINS — ANYTHING YOU'RE PROUD OF</div>
+        <div class="row gap"><input type="text" id="winText" placeholder="e.g. Fixed my first bug without help"><button class="btn" data-l="win-add">ADD</button></div>
+        ${l.wins.slice().reverse().map(w => `<div class="journal-item"><div class="micro">${new Date(w.at).toLocaleDateString()}</div><div class="mono">${esc(w.text)}</div></div>`).join('') || '<p class="micro">SMALL WINS COUNT. ADD ONE.</p>'}</div>
+      <div class="panel"><div class="panel-label">THEN VS NOW</div>
+        ${S.recall.length >= 2 ? `<div class="micro">YOUR FIRST NOTES</div>${firstNotes.map(r => `<div class="journal-item"><div class="micro">${r.day}</div><div class="mono">${esc(r.text)}</div></div>`).join('')}
+          <div class="micro" style="margin-top:10px">YOUR LATEST NOTES</div>${lastNotes.map(r => `<div class="journal-item now"><div class="micro">${r.day}</div><div class="mono">${esc(r.text)}</div></div>`).join('')}`
+        : '<p class="mono" style="color:var(--muted)">After a few recall notes, your first and latest notes show here side by side — proof of how much you have learned.</p>'}</div>
+    </div>`;
+  }
+  if (learnTab === 'drill') {
+    const d = l.drill;
+    html += `<div class="two">
+      <div class="panel"><div class="panel-label">CODE TRACING DRILL</div>
+        <p class="mono" style="color:var(--muted);margin-top:0">Read short C# snippets and work out the result in your head. Level 1 keeps the code on screen; level 2 hides it after 20 seconds; level 3 after 12. Eight right in a row moves you up.</p>
+        <div class="stat-row" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><div class="micro">LEVEL</div><b>${d.level}</b></div><div class="stat"><div class="micro">CORRECT</div><b>${d.correct}/${d.total}</b></div><div class="stat"><div class="micro">BEST STREAK</div><b>${d.best}</b></div></div>
+        <button class="btn engage" data-l="drill">START 5-QUESTION DRILL</button>
+        <div class="row gap" style="margin-top:12px">${[1, 2, 3].map(n => `<button class="btn small ${d.level === n ? 'go' : 'ghost'}" data-l="drill-lv" data-n="${n}">LEVEL ${n}</button>`).join('')}</div></div>
+      <div class="panel"><div class="panel-label">WHY THIS HELPS</div>
+        <p class="mono" style="line-height:1.6">Holding code in your head lets you test ideas without typing them — the "mind's eye" that strong programmers and chess players rely on. Start with the code visible, then let it disappear sooner as you improve. A few minutes a day is enough.</p></div></div>`;
+  }
+  if (learnTab === 'why') {
+    const w = l.why, chain = w.chain.length ? w.chain : ['Learn game development'];
+    html += `<div class="panel"><div class="panel-label">MY WHY — KEEP ASKING "WHY?" UNTIL YOU HIT WHAT YOU REALLY CARE ABOUT</div>
+      <div class="why-chain">${chain.map((c, i) => `<div class="why-step"><span class="micro">${i === 0 ? 'I WANT TO' : 'BECAUSE'}</span><input type="text" data-why="${i}" value="${esc(c)}"></div>`).join('<div class="why-arrow">WHY? ↓</div>')}</div>
+      <div class="row gap" style="margin:12px 0"><button class="btn small" data-l="why-more">+ ASK WHY AGAIN</button>${chain.length > 1 ? '<button class="btn small ghost" data-l="why-less">REMOVE LAST</button>' : ''}</div>
+      <div class="field"><label for="whyPic">PICTURE IT — WHAT DOES SUCCESS LOOK LIKE?</label><input type="text" id="whyPic" value="${esc(w.picture)}" placeholder="e.g. my friends laughing while playing a game I made"></div>
+      <button class="btn go" data-l="why-save">SAVE — THE LAST ANSWER IS MY CORE REASON</button>
+      ${w.core ? `<div style="margin-top:14px">${whyLine()}</div>` : ''}
+      <p class="micro" style="margin-top:14px;line-height:1.6">YOUR WHY SHOWS ON THE "TRY IT FIRST" SCREEN AND THE HUB. TAKE A FEW SECONDS TO PICTURE IT BEFORE YOU START — IT'S MEANT TO PULL YOU FORWARD, NOT PUSH YOU WITH PRESSURE.</p></div>`;
+  }
+  return html;
+}
+
+function bindLearn(el) {
+  if (el._lBound) return; el._lBound = true;
+  el.addEventListener('click', (e) => {
+    if (view !== 'learn') return;
+    const tb = e.target.closest('[data-lt]'); if (tb) { learnTab = tb.dataset.lt; render(); return; }
+    const b = e.target.closest('[data-l]'); if (!b) return;
+    const l = L(), id = b.dataset.id;
+    switch (b.dataset.l) {
+      case 'review-all': runReviews(dueCards(), () => render()); break;
+      case 'card-del': l.cards = l.cards.filter(c => c.id !== id); save(); render(); break;
+      case 'card-add': { const ti = $('#cardTitle').value.trim(), tx = $('#cardText').value.trim(); if (!ti || !tx) { toast('ADD A CONCEPT AND WHAT YOU KNOW', true); return; } makeCard('', ti, tx); save(); render(); toast('CARD ADDED — FIRST REVIEW TOMORROW'); break; }
+      case 'pat-add': { const w = $('#patWhen').value.trim(), t = $('#patThen').value.trim(); if (!w || !t) { toast('FILL IN BOTH SIDES', true); return; } l.patterns.push({ id: uid(), when: w, then: t, at: Date.now() }); addPoints(LP.pattern, 'pattern'); save(); checkTrophies(); render(); break; }
+      case 'pat-del': l.patterns = l.patterns.filter(p => p.id !== id); save(); render(); break;
+      case 'pat-game': patternGame(); break;
+      case 'win-add': { const t = $('#winText').value.trim(); if (!t) return; l.wins.push({ text: t, at: Date.now() }); save(); sfx.complete(); render(); toast('WIN SAVED — NICE.'); break; }
+      case 'drill': drillSession(); break;
+      case 'drill-lv': l.drill.level = +b.dataset.n; l.drill.levelStreak = 0; save(); render(); break;
+      case 'why-more': case 'why-less': case 'why-save': {
+        const vals = $$('[data-why]').map(i => i.value.trim());
+        if (b.dataset.l === 'why-more') vals.push('');
+        if (b.dataset.l === 'why-less') vals.pop();
+        l.why.chain = vals; l.why.picture = ($('#whyPic')?.value || '').trim();
+        if (b.dataset.l === 'why-save') { l.why.core = [...vals].reverse().find(v => v) || ''; checkTrophies(); toast('SAVED'); }
+        save(); render(); if (b.dataset.l === 'why-more') setTimeout(() => { const ins = $$('[data-why]'); ins[ins.length - 1]?.focus(); }, 30);
+        break;
+      }
+    }
+  });
+}
+function patternGame() {
+  const ps = [...L().patterns].sort(() => Math.random() - 0.5).slice(0, 5);
+  let i = 0, right = 0;
+  const ask = () => {
+    if (i >= ps.length) { const a = showAlert(`<div class="a-kicker">GUESS GAME</div><div class="a-title">${right}/${ps.length}</div><div class="a-btns"><button class="btn go" data-x="ok">DONE</button></div>`, true); a.onclick = (e) => { if (e.target.closest('[data-x]')) hideAlert(); }; return; }
+    const p = ps[i];
+    const a = showAlert(`<div class="a-kicker">GUESS GAME · ${i + 1}/${ps.length}</div><div class="a-title" style="font-size:40px">${esc(p.when)}</div>
+      <div class="a-text">What would you try? Think of it first.</div>
+      <textarea id="pgText" class="recall-input" style="min-height:60px" placeholder="My guess…"></textarea>
+      <div class="recall-reveal hidden" id="pgAns">${esc(p.then)}</div>
+      <div class="a-btns" id="pgBtns"><button class="btn" data-x="reveal">REVEAL</button></div>`, true);
+    setTimeout(() => $('#pgText')?.focus(), 50);
+    a.onclick = (e) => {
+      const b = e.target.closest('[data-x]'); if (!b) return;
+      if (b.dataset.x === 'reveal') { $('#pgAns').classList.remove('hidden'); $('#pgBtns').innerHTML = '<button class="btn go" data-x="yes">I KNEW IT</button><button class="btn" data-x="no">NOT YET</button>'; }
+      else { if (b.dataset.x === 'yes') { right++; addPoints(LP.drill, 'pattern guess'); sfx.step(); } i++; ask(); }
+    };
+  };
+  ask();
+}
+
 // ---------- text size ----------
 // Effective zoom = your text-size choice × an automatic factor so big / full screens are filled properly.
 let curZoom = 1;
@@ -1680,11 +2086,14 @@ async function boot() {
   let lastDay = dayKey();
   setInterval(() => { if (dayKey() !== lastDay) { lastDay = dayKey(); if ($('#focus').classList.contains('hidden')) render(); } }, 30000);
   loadCustomSounds();
+  seedPatterns();
+  if (!L().migrated) { S.recall.forEach(r => { const t = S.tasks.find(x => x.id === r.taskId); L().cards.push({ id: uid(), taskId: r.taskId, title: t ? t.title : 'What I learned', text: r.text, created: r.day, due: dayKey(), step: 0, history: [] }); }); L().migrated = true; save(); }
+  checkTrophies(true);
   scanMusic();
   render(); setBg();
 
   const bootEl = $('#boot');
-  if (S.settings.calm || matchMedia('(prefers-reduced-motion: reduce)').matches) { bootEl.remove(); maybeAutoOpen(); checkReminders(); return; }
+  if (S.settings.calm || matchMedia('(prefers-reduced-motion: reduce)').matches) { bootEl.remove(); maybeAutoOpen(); checkReminders(); if ($('#alertWrap').classList.contains('hidden')) maybeWeekly(); return; }
   try { sfx.boot(); } catch { }
   const lines = ['> INITIALIZING OPERATIONS TERMINAL', `> LOADING ${S.tasks.length} OPERATION FILE(S) ........ OK`, `> SCANNING INSTALLED APPS ........ ${APPS.length} FOUND`,
     `> TODAY: ${todaysTasks().length} OPERATION(S) SCHEDULED`, `> REWARD BANK: ${S.points} PTS`, '> SYNC SYSTEMS NOMINAL'];
@@ -1696,7 +2105,7 @@ async function boot() {
     if (i >= lines.length) {
       clearInterval(iv);
       $('#bootTitle').classList.add('lock');
-      setTimeout(() => { bootEl.classList.add('done'); setTimeout(() => { bootEl.remove(); maybeAutoOpen(); checkReminders(); }, 450); }, 550);
+      setTimeout(() => { bootEl.classList.add('done'); setTimeout(() => { bootEl.remove(); maybeAutoOpen(); checkReminders(); if ($('#alertWrap').classList.contains('hidden')) maybeWeekly(); }, 450); }, 550);
     }
   }, 140);
 }
